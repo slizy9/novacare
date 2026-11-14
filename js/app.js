@@ -451,7 +451,7 @@ function fieldHtml(id, draft) {
       <input id="in-${id}" data-in="${id}" type="number" inputmode="decimal" step="${ind.step}" min="${ind.min}" max="${ind.max}" value="${v ?? ''}" placeholder="${last.v != null ? Engine.fmt(ind, last.v) : Engine.fmt(ind, ind.def)}" aria-label="${esc(ind.name)}">
       <span>${ind.unit}</span><button data-act="step" data-id="${id}" data-d="1" aria-label="Increase">+</button></div>`;
   }
-  return `<div class="field"><label for="in-${id}">${ind.name}</label>${input}<div class="readout" id="ro-${id}">${readoutHtml(id, v)}</div></div>`;
+  return `<div class="field"><label for="in-${id}">${ind.short}</label>${input}<div class="readout" id="ro-${id}">${readoutHtml(id, v)}</div></div>`;
 }
 
 function readoutHtml(id, v) {
@@ -466,22 +466,34 @@ function readoutHtml(id, v) {
 
 function measureHtml(m) {
   const ids = m.steps[m.i]; const ind = IND[ids[0]]; const n = m.steps.length;
-  const title = ids.length > 1 ? 'Blood pressure' : ind.name;
-  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-    <header><div><h2>${title}</h2><p class="sub">${m.guided ? 'Daily check-in' : 'Log reading'}${n > 1 ? ` · step ${m.i + 1} of ${n}` : ''} · MD ${state.md}</p></div>
+  return `<div class="sheet narrow measure" role="dialog" aria-modal="true" aria-label="${esc(ASK[ids[0]] || ind.name)}">
+    <header><div><p class="kicker">${m.guided ? 'Daily check-in' : 'Log reading'}${n > 1 ? ` · ${m.i + 1} of ${n}` : ''}</p><h2>${ASK[ids[0]] || ind.name}</h2></div>
       <button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
-    ${n > 1 ? `<div class="meter"><i style="width:${(m.i / n) * 100}%"></i></div>` : ''}
-    <div class="sheet-b">
+    ${n > 1 ? `<div class="meter"><i style="width:${((m.i + 1) / n) * 100}%"></i></div>` : ''}
+    <div class="sheet-b one">
       <div class="fields">${ids.map((id) => fieldHtml(id, m.draft)).join('')}</div>
-      <div class="guide">
-        <h3>How to measure</h3><ol>${ind.how.map((x) => `<li>${x}</li>`).join('')}</ol>
-        <h3>Why it matters</h3><p>${ind.why}</p>
-        <h3>In space</h3><p>${ind.space}</p>
-      </div>
+      <details class="how"><summary>${icon('file')}How to measure</summary><ol>${ind.how.map((x) => `<li>${x}</li>`).join('')}</ol><p class="muted small">${ind.why}</p></details>
+      ${evidenceHtml(ids[0], true)}
     </div>
-    <footer>${n > 1 ? `<button class="btn ghost" data-act="skip">Skip</button>` : `<button class="btn ghost" data-act="close">Cancel</button>`}
-      <button class="btn primary" id="save" data-act="save">${m.i < n - 1 ? 'Save and continue' : 'Save'}</button></footer>
+    <footer>${n > 1 ? `<button class="btn ghost lg" data-act="skip">Skip</button>` : `<button class="btn ghost lg" data-act="close">Cancel</button>`}
+      <button class="btn primary lg save-big" id="save" data-act="save">${m.i < n - 1 ? 'Save and continue' : 'Save'}${icon('next')}</button></footer>
   </div>`;
+}
+
+/* The evidence behind an indicator: NASA risk and standard, plus real NASA OSDR studies. */
+function evidenceHtml(id, compact) {
+  const refs = EVIDENCE[id] || []; const os = typeof OSDR !== 'undefined' && OSDR.indicators ? OSDR.indicators[id] : null;
+  const studies = os ? os.studies : [];
+  if (compact) {
+    return `<details class="evid"><summary>${icon('shield')}Backed by NASA research${os ? ` · ${os.total} OSDR studies` : ''}</summary>
+      <ul>${refs.map((r) => `<li><a href="${r.url}" target="_blank" rel="noopener">${esc(r.label)}</a></li>`).join('')}
+      ${studies.map((st) => `<li><a href="${st.url}" target="_blank" rel="noopener">${esc(st.id)} — ${esc(st.title)}</a> <small>${esc([st.organism, st.kind, st.year].filter(Boolean).join(' · '))}</small></li>`).join('')}</ul></details>`;
+  }
+  return `<section class="evid-full"><h3>${icon('shield')}Evidence</h3>
+    <ul>${refs.map((r) => `<li><a href="${r.url}" target="_blank" rel="noopener">${esc(r.label)}</a></li>`).join('')}</ul>
+    ${studies.length ? `<p class="muted small">${os.total} studies in NASA’s Open Science Data Repository relate to this measurement. Most relevant:</p>
+    <ul>${studies.map((st) => `<li><a href="${st.url}" target="_blank" rel="noopener"><b>${esc(st.id)}</b> ${esc(st.title)}</a> <small class="muted">${esc([st.organism, st.tissue, st.kind === 'Spaceflight' && st.mission ? st.mission : st.kind, st.year].filter(Boolean).join(' · '))}</small></li>`).join('')}</ul>` : ''}
+    <p class="muted small">Reference ranges are simplified general adult clinical values. Source data: NASA OSDR Biological Data API, snapshot ${esc(OSDR.snapshot)}.</p></section>`;
 }
 
 function doneHtml(m) {
@@ -512,6 +524,7 @@ function detailHtml(id) {
       <div class="seg">${rb(7, '7 days')}${rb(14, '14 days')}${rb(30, '30 days')}${rb(0, 'All')}</div>
       ${chart(ind, ui.range)}
       ${adv.map((a) => advisoryHtml(a, true, true)).join('')}
+      ${evidenceHtml(id, false)}
       <div class="d-cols">
         <div><h3>How to measure</h3><ol>${ind.how.map((x) => `<li>${x}</li>`).join('')}</ol></div>
         <div><h3>Why it matters</h3><p>${ind.why}</p><h3>In space</h3><p>${ind.space}</p></div>

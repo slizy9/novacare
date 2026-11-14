@@ -251,6 +251,8 @@ const Assistant = (() => {
     });
     if (person.me && ids.includes('rad')) { const d = Engine.cumulativeDose(); parts.push(`<p>Mission dose so far: <b>${d.toFixed(1)} mSv</b> — ${Math.round((d / CAREER_DOSE_LIMIT) * 100)}% of the ${CAREER_DOSE_LIMIT} mSv career limit.</p>`); }
     if (person.me && ids.length === 1) parts.push(`<p class="muted small">${esc(IND[ids[0]].why)}</p>`);
+    const ev = (EVIDENCE[ids[0]] || [])[0]; const os = typeof OSDR !== 'undefined' && OSDR.indicators && OSDR.indicators[ids[0]];
+    if (ev) parts.push(`<p class="src">${icon('shield')}<span>Source: <a href="${ev.url}" target="_blank" rel="noopener">${esc(ev.label)}</a>${os && os.studies[0] ? ` · <a href="${os.studies[0].url}" target="_blank" rel="noopener">${esc(os.studies[0].id)}</a> and ${os.total - 1} more NASA OSDR studies` : ''}</span></p>`);
     return { html: parts.join(''), say: say.join(' '), act: person.me ? { label: `Open ${IND[ids[0]].short} trend`, act: 'detail', id: ids[0] } : null };
   }
 

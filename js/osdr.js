@@ -510,5 +510,532 @@ const OSDR = {
     }
    ]
   }
+ },
+ "indicators": {
+  "sys": {
+   "total": 50,
+   "studies": [
+    {
+     "id": "OSD-363",
+     "title": "Inflammatory gene expression signatures in idiopathic intracranial hypertension: possible implications in microgravity-induced ICP elevation - CSF",
+     "organism": "Human",
+     "tissue": "cerebrospinal fluid",
+     "mission": "",
+     "kind": "Ground Study",
+     "year": 2021,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-363"
+    },
+    {
+     "id": "OSD-635",
+     "title": "Spaceflight effects on human vascular smooth muscle cell phenotype and function",
+     "organism": "Human",
+     "tissue": "Cells",
+     "mission": "SpaceX-17",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-635"
+    },
+    {
+     "id": "OSD-344",
+     "title": "Real-time quantitative PCR analysis of human cardiovascular progenitor cells flown aboard the International Space Station",
+     "organism": "Human",
+     "tissue": "cardiovascular progenitor cells",
+     "mission": "SpaceX-11",
+     "kind": "Spaceflight",
+     "year": 2018,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-344"
+    }
+   ]
+  },
+  "dia": {
+   "total": 50,
+   "studies": [
+    {
+     "id": "OSD-363",
+     "title": "Inflammatory gene expression signatures in idiopathic intracranial hypertension: possible implications in microgravity-induced ICP elevation - CSF",
+     "organism": "Human",
+     "tissue": "cerebrospinal fluid",
+     "mission": "",
+     "kind": "Ground Study",
+     "year": 2021,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-363"
+    },
+    {
+     "id": "OSD-635",
+     "title": "Spaceflight effects on human vascular smooth muscle cell phenotype and function",
+     "organism": "Human",
+     "tissue": "Cells",
+     "mission": "SpaceX-17",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-635"
+    },
+    {
+     "id": "OSD-344",
+     "title": "Real-time quantitative PCR analysis of human cardiovascular progenitor cells flown aboard the International Space Station",
+     "organism": "Human",
+     "tissue": "cardiovascular progenitor cells",
+     "mission": "SpaceX-11",
+     "kind": "Spaceflight",
+     "year": 2018,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-344"
+    }
+   ]
+  },
+  "hr": {
+   "total": 39,
+   "studies": [
+    {
+     "id": "OSD-575",
+     "title": "SpaceX Inspiration4 Blood Serum Metabolic Panel and Immune/Cardiac Cytokine Arrays (Comprehensive Metabolic Panel and Multiplex)",
+     "organism": "Human",
+     "tissue": "Serum",
+     "mission": "SpaceX Inspiration4",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-575"
+    },
+    {
+     "id": "OSD-127",
+     "title": "Global gene expression profiles of cardiac progenitors differentiated from human pluripotent stem cells in 3D culture under simulated microgravity",
+     "organism": "Human",
+     "tissue": "",
+     "mission": "Simulated_Microgravity",
+     "kind": "Ground Study",
+     "year": 2016,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-127"
+    },
+    {
+     "id": "OSD-908",
+     "title": "MicroRNAs shape mouse age-independent tissue adaptation to spaceflight via ECM and developmental pathways - Heart data",
+     "organism": "Mouse",
+     "tissue": "Heart",
+     "mission": "SpaceX-16",
+     "kind": "Spaceflight",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-908"
+    }
+   ]
+  },
+  "spo2": {
+   "total": 15,
+   "studies": [
+    {
+     "id": "OSD-198",
+     "title": "Effects of bedrest and hypoxia on human skeletal muscle miRNA expression",
+     "organism": "Human",
+     "tissue": "Vastus Lateralis",
+     "mission": "Simulated_Microgravity, Simulated_Environmental_Factors",
+     "kind": "Ground Study",
+     "year": 2016,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-198"
+    },
+    {
+     "id": "OSD-915",
+     "title": "MicroRNAs shape mouse age-independent tissue adaptation to spaceflight via ECM and developmental pathways - Lung data",
+     "organism": "Mouse",
+     "tissue": "Lung",
+     "mission": "SpaceX-16",
+     "kind": "Spaceflight",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-915"
+    },
+    {
+     "id": "OSD-900",
+     "title": "Transcriptional profiling of lungs from mice flown on the RR-10 mission",
+     "organism": "Mouse",
+     "tissue": "Right Lung",
+     "mission": "SpaceX-21",
+     "kind": "Spaceflight",
+     "year": 2025,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-900"
+    }
+   ]
+  },
+  "temp": {
+   "total": 90,
+   "studies": [
+    {
+     "id": "OSD-575",
+     "title": "SpaceX Inspiration4 Blood Serum Metabolic Panel and Immune/Cardiac Cytokine Arrays (Comprehensive Metabolic Panel and Multiplex)",
+     "organism": "Human",
+     "tissue": "Serum",
+     "mission": "SpaceX Inspiration4",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-575"
+    },
+    {
+     "id": "OSD-656",
+     "title": "SpaceX Inspiration4 Urine Inflammation Panel (Multiplex, NULISAseq)",
+     "organism": "Human",
+     "tissue": "Urine",
+     "mission": "SpaceX Inspiration4",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-656"
+    },
+    {
+     "id": "OSD-363",
+     "title": "Inflammatory gene expression signatures in idiopathic intracranial hypertension: possible implications in microgravity-induced ICP elevation - CSF",
+     "organism": "Human",
+     "tissue": "cerebrospinal fluid",
+     "mission": "",
+     "kind": "Ground Study",
+     "year": 2021,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-363"
+    }
+   ]
+  },
+  "glu": {
+   "total": 19,
+   "studies": [
+    {
+     "id": "OSD-571",
+     "title": "SpaceX Inspiration4 Plasma Profiling: Proteomics, EVPs, Metabolomics, cfDNA Sequencing and cfRNA Sequencing",
+     "organism": "Human",
+     "tissue": "Plasma",
+     "mission": "SpaceX Inspiration4",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-571"
+    },
+    {
+     "id": "OSD-575",
+     "title": "SpaceX Inspiration4 Blood Serum Metabolic Panel and Immune/Cardiac Cytokine Arrays (Comprehensive Metabolic Panel and Multiplex)",
+     "organism": "Human",
+     "tissue": "Serum",
+     "mission": "SpaceX Inspiration4",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-575"
+    },
+    {
+     "id": "OSD-370",
+     "title": "Insulin resistance induced by physical inactivity is associated with multiple transcriptional changes in skeletal muscle in young men",
+     "organism": "Human",
+     "tissue": "Vastus Lateralis",
+     "mission": "Simulated_Microgravity",
+     "kind": "Ground Study",
+     "year": 2010,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-370"
+    }
+   ]
+  },
+  "sleep": {
+   "total": 4,
+   "studies": [
+    {
+     "id": "OSD-343",
+     "title": "Comprehensive multi-omics analysis reveals mitochondrial stress as a central biological hub for spaceflight impact",
+     "organism": "Mouse",
+     "tissue": "Gastrocnemius",
+     "mission": "SpaceX-12",
+     "kind": "Spaceflight",
+     "year": 2020,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-343"
+    },
+    {
+     "id": "OSD-253",
+     "title": "Transcriptional analysis of kidneys from mice flown on the RR-7 mission",
+     "organism": "Mouse",
+     "tissue": "Left kidney",
+     "mission": "SpaceX-15",
+     "kind": "Spaceflight",
+     "year": 2019,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-253"
+    },
+    {
+     "id": "OSD-254",
+     "title": "Transcriptional analysis of dorsal skin from mice flown on the RR-7 mission",
+     "organism": "Mouse",
+     "tissue": "dorsal skin",
+     "mission": "SpaceX-15",
+     "kind": "Spaceflight",
+     "year": 2019,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-254"
+    }
+   ]
+  },
+  "mood": {
+   "total": 25,
+   "studies": [
+    {
+     "id": "OSD-832",
+     "title": "Effects of 5-Ion Beam Irradiation and Hindlimb Unloading on Metabolic Pathways in Plasma and Brain of Behaviorally Tested WAG/Rij Rats - Plasma data",
+     "organism": "Human",
+     "tissue": "Plasma",
+     "mission": "Simplified_Galactic_Cosmic_Ray_Simulation_Irradiation, Heavy_Ion_HZE_Irradiation, Multiple_Radiation_Types, High_Dose_Irradiation, Hindlimb_Unloading",
+     "kind": "Ground Study",
+     "year": 2025,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-832"
+    },
+    {
+     "id": "OSD-952",
+     "title": "Automated behavioral segmentation and markerless pose tracking of mice during spaceflight",
+     "organism": "Mouse",
+     "tissue": "Whole Organism",
+     "mission": "SpaceX-4",
+     "kind": "Spaceflight",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-952"
+    },
+    {
+     "id": "OSD-1018",
+     "title": "Differential Impact of Social Isolation and Space Radiation on Behavior and Motor Learning in Rats",
+     "organism": "Rat",
+     "tissue": "Whole Organism",
+     "mission": "Simulated_Environmental_Factors, Simplified_Galactic_Cosmic_Ray_Simulation_Irradiation, Heavy_Ion_HZE_Irradiation, Multiple_Radiation_Types, Low_Dose_Irradiation",
+     "kind": "Ground Study",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-1018"
+    }
+   ]
+  },
+  "stress": {
+   "total": 28,
+   "studies": [
+    {
+     "id": "OSD-832",
+     "title": "Effects of 5-Ion Beam Irradiation and Hindlimb Unloading on Metabolic Pathways in Plasma and Brain of Behaviorally Tested WAG/Rij Rats - Plasma data",
+     "organism": "Human",
+     "tissue": "Plasma",
+     "mission": "Simplified_Galactic_Cosmic_Ray_Simulation_Irradiation, Heavy_Ion_HZE_Irradiation, Multiple_Radiation_Types, High_Dose_Irradiation, Hindlimb_Unloading",
+     "kind": "Ground Study",
+     "year": 2025,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-832"
+    },
+    {
+     "id": "OSD-542",
+     "title": "Effects of 14 days of confinement on blood gene expression profiles in men",
+     "organism": "Human",
+     "tissue": "Whole Blood",
+     "mission": "",
+     "kind": "Ground Study",
+     "year": 2022,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-542"
+    },
+    {
+     "id": "OSD-952",
+     "title": "Automated behavioral segmentation and markerless pose tracking of mice during spaceflight",
+     "organism": "Mouse",
+     "tissue": "Whole Organism",
+     "mission": "SpaceX-4",
+     "kind": "Spaceflight",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-952"
+    }
+   ]
+  },
+  "water": {
+   "total": 28,
+   "studies": [
+    {
+     "id": "OSD-913",
+     "title": "MicroRNAs shape mouse age-independent tissue adaptation to spaceflight via ECM and developmental pathways - Kidney data",
+     "organism": "Mouse",
+     "tissue": "Kidney",
+     "mission": "SpaceX-16",
+     "kind": "Spaceflight",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-913"
+    },
+    {
+     "id": "OSD-516",
+     "title": "Modeling cellular responses to serum and vitamin D in microgravity using a human kidney microphysiological system",
+     "organism": "Human",
+     "tissue": "primary cell",
+     "mission": "SpaceX-17",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-516"
+    },
+    {
+     "id": "OSD-771",
+     "title": "Transcriptional profiling of kidney tissue from mice flown on the Rodent Research Reference Mission-2 (RRRM-2)",
+     "organism": "Mouse",
+     "tissue": "Right kidney",
+     "mission": "SpaceX-18",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-771"
+    }
+   ]
+  },
+  "exercise": {
+   "total": 41,
+   "studies": [
+    {
+     "id": "OSD-942",
+     "title": "Exercise Training Attenuates the Muscle Mitochondria Genomic Response to Bed Rest (microarray data)",
+     "organism": "Human",
+     "tissue": "Vastus Lateralis",
+     "mission": "Simulated_Microgravity",
+     "kind": "Ground Study",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-942"
+    },
+    {
+     "id": "OSD-51",
+     "title": "Woman skeletal muscle transcriptome with bed rest and countermeasures.",
+     "organism": "Human",
+     "tissue": "Skeletal Muscle Tissue",
+     "mission": "WISE-2005",
+     "kind": "Ground Study",
+     "year": 2010,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-51"
+    },
+    {
+     "id": "OSD-479",
+     "title": "The impact of deep space radiation on cognitive performance: From biological sex to biomarkers to countermeasures (Elevated Plus Maze, Novel Object Recognition, Open Field, Radial Arm Water Maze, and Three Chamber Social Isolation/Interaction)",
+     "organism": "Mouse",
+     "tissue": "Whole Organism",
+     "mission": "GROUND-2, Heavy_Ion_HZE_Irradiation, High_Dose_Irradiation, Low_Dose_Irradiation, Simplified_Galactic_Cosmic_Ray_Simulation_Irradiation, Multiple_Radiation_Types",
+     "kind": "Ground Study",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-479"
+    }
+   ]
+  },
+  "mass": {
+   "total": 90,
+   "studies": [
+    {
+     "id": "OSD-832",
+     "title": "Effects of 5-Ion Beam Irradiation and Hindlimb Unloading on Metabolic Pathways in Plasma and Brain of Behaviorally Tested WAG/Rij Rats - Plasma data",
+     "organism": "Human",
+     "tissue": "Plasma",
+     "mission": "Simplified_Galactic_Cosmic_Ray_Simulation_Irradiation, Heavy_Ion_HZE_Irradiation, Multiple_Radiation_Types, High_Dose_Irradiation, Hindlimb_Unloading",
+     "kind": "Ground Study",
+     "year": 2025,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-832"
+    },
+    {
+     "id": "OSD-540",
+     "title": "Ten-day human unilateral lower limb suspension and active recovery in young healthy men",
+     "organism": "Human",
+     "tissue": "Vastus Lateralis",
+     "mission": "Simulated_Microgravity",
+     "kind": "Ground Study",
+     "year": 2022,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-540"
+    },
+    {
+     "id": "OSD-354",
+     "title": "Molecular Transducers of Human Skeletal Muscle Remodeling under Different Loading States",
+     "organism": "Human",
+     "tissue": "Vastus Lateralis",
+     "mission": "Hindlimb_Unloading",
+     "kind": "Ground study",
+     "year": 2020,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-354"
+    }
+   ]
+  },
+  "vision": {
+   "total": 38,
+   "studies": [
+    {
+     "id": "OSD-815",
+     "title": "The ex vivo human translaminar autonomous system to study spaceflight associated neuro-ocular syndrome pathogenesis (Ocular Globe, Photography)",
+     "organism": "Human",
+     "tissue": "Left Eye",
+     "mission": "Simulated_Environmental_Factors",
+     "kind": "Ground Study",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-815"
+    },
+    {
+     "id": "OSD-920",
+     "title": "Spaceflight induces systemic effects on extracellular matrix and immune system in different age-stages - Eye data",
+     "organism": "Mouse",
+     "tissue": "eye",
+     "mission": "SpaceX-16",
+     "kind": "Spaceflight",
+     "year": 2026,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-920"
+    },
+    {
+     "id": "OSD-715",
+     "title": "Characterization of mouse ocular response to a 35-day spaceflight mission: Evidence of blood-retinal barrier disruption and ocular adaptations - Proteomics data",
+     "organism": "Mouse",
+     "tissue": "Right retina",
+     "mission": "SpaceX-12",
+     "kind": "Spaceflight",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-715"
+    }
+   ]
+  },
+  "rad": {
+   "total": 118,
+   "studies": [
+    {
+     "id": "OSD-832",
+     "title": "Effects of 5-Ion Beam Irradiation and Hindlimb Unloading on Metabolic Pathways in Plasma and Brain of Behaviorally Tested WAG/Rij Rats - Plasma data",
+     "organism": "Human",
+     "tissue": "Plasma",
+     "mission": "Simplified_Galactic_Cosmic_Ray_Simulation_Irradiation, Heavy_Ion_HZE_Irradiation, Multiple_Radiation_Types, High_Dose_Irradiation, Hindlimb_Unloading",
+     "kind": "Ground Study",
+     "year": 2025,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-832"
+    },
+    {
+     "id": "OSD-410",
+     "title": "Dataset for dose and time-dependent transcriptional response to ionizing radiation exposure.",
+     "organism": "Human",
+     "tissue": "Blood",
+     "mission": "Gamma_Irradiation, High_Dose_Irradiation, Low_Dose_Irradiation, Low_LET_Irradiation",
+     "kind": "Ground Study",
+     "year": 2017,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-410"
+    },
+    {
+     "id": "OSD-1012",
+     "title": "Impact of Neutron Exposure on Global Gene Expression in a Human Peripheral Blood Model.",
+     "organism": "Human",
+     "tissue": "Blood",
+     "mission": "X-Ray_Irradiation, Neutron_Irradiation, High_Dose_Irradiation, Low_Dose_Irradiation, Low_LET_Irradiation, Multiple_Radiation_Types, High_LET_Irradiation, Gamma_Irradiation",
+     "kind": "Ground Study",
+     "year": 2017,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-1012"
+    }
+   ]
+  },
+  "co2": {
+   "total": 6,
+   "studies": [
+    {
+     "id": "OSD-679",
+     "title": "Head-Down Tilt As a Model for Intracranial and Intraocular Pressures, and Retinal Changes during Spaceflight (Eye, MRI, Optical Coherence Tomography, Tonometry, A-scan)",
+     "organism": "Rat",
+     "tissue": "Left Eye",
+     "mission": "Hindlimb_Unloading, Simulated_Environmental_Factors",
+     "kind": "Ground Study",
+     "year": 2024,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-679"
+    },
+    {
+     "id": "OSD-33",
+     "title": "Gene responses in mouse brain to long-term exposure to microgravity",
+     "organism": "Mouse",
+     "tissue": "Brain",
+     "mission": "STS-128",
+     "kind": "Spaceflight",
+     "year": 2012,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-33"
+    },
+    {
+     "id": "OSD-235",
+     "title": "Transcriptomic analysis of liver from mice subjected to simulated spaceflight euthanasia, freezing, and tissue preservation protocols",
+     "organism": "Mouse",
+     "tissue": "Left Lobe of the Liver",
+     "mission": "",
+     "kind": "Ground Study",
+     "year": 2019,
+     "url": "https://osdr.nasa.gov/bio/repo/data/studies/OSD-235"
+    }
+   ]
+  }
  }
 };

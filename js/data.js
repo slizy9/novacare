@@ -538,3 +538,41 @@ const RANKS = [
   { xp: 10000, name: 'Commander' },
   { xp: 15000, name: 'Mission Legend' },
 ];
+
+/* ---------- evidence behind every indicator ----------
+   Why each measurement is tracked in space, from NASA sources: the Human Research Program risk it
+   belongs to (Human Research Roadmap) and the crew health standard (NASA-STD-3001). Real NASA OSDR
+   studies for each indicator come from js/osdr.js (OSDR.indicators). Reference ranges themselves are
+   simplified general adult clinical values. */
+const HRP = 'https://humanresearchroadmap.nasa.gov/risks/';
+const STD3001 = { label: 'NASA-STD-3001 Space Flight Human-System Standard (Vol. 1 Crew Health, Vol. 2 Habitability & Environmental Health)', url: 'https://www.nasa.gov/ochmo/hsa-standards/' };
+const risk = (name) => ({ label: `NASA Human Research Program — ${name}`, url: HRP });
+const RISK = {
+  cv: risk('Risk of Cardiovascular Adaptations Contributing to Adverse Mission Performance and Health Outcomes'),
+  hypoxia: risk('Risk of Reduced Crew Health and Performance Due to Hypoxia'),
+  immune: risk('Risk of In Mission Impacts, Adverse Health Events or Long-Term Health Impacts due to Altered Immune Response'),
+  food: risk('Risk of Performance Decrement and Crew Illness Due to Inadequate Food and Nutrition'),
+  sleep: risk('Risk of Performance Decrements and Adverse Health Outcomes Resulting from Sleep Loss, Circadian Desynchronization, and Work Overload'),
+  bmed: risk('Risk of Adverse Cognitive or Behavioral Changes and Psychiatric Disorders'),
+  renal: risk('Risk of Renal Stone Formation'),
+  fitness: risk('Risk of Mission Performance Decrements and Adverse Health Outcomes Resulting from Reduced Cardiorespiratory and Musculoskeletal Fitness'),
+  bone: risk('Risk of Bone Fracture due to Spaceflight-induced Changes to Bone'),
+  sans: risk('Risk of Spaceflight Associated Neuro-ocular Syndrome (SANS)'),
+  cancer: risk('Risk of Radiation Carcinogenesis'),
+  medical: risk('Risk of Adverse Health Outcomes and Decrements in Performance Due to Medical Conditions that occur in Mission'),
+};
+const EVIDENCE = {
+  sys: [RISK.cv, STD3001], dia: [RISK.cv, STD3001], hr: [RISK.cv, STD3001],
+  spo2: [RISK.hypoxia, STD3001], temp: [RISK.immune, RISK.medical], glu: [RISK.food, STD3001],
+  sleep: [RISK.sleep], mood: [RISK.bmed], stress: [RISK.bmed, RISK.sleep], water: [RISK.renal, RISK.food],
+  exercise: [RISK.fitness, RISK.bone], mass: [RISK.food, RISK.fitness], vision: [RISK.sans],
+  rad: [RISK.cancer, { label: 'NASA-STD-3001 Vol. 1 — career effective radiation dose limit of 600 mSv', url: STD3001.url }],
+  co2: [{ label: 'NASA-STD-3001 Vol. 2 — spacecraft atmosphere and carbon dioxide limits', url: STD3001.url }, RISK.sans],
+};
+/* Short check-in questions. */
+const ASK = {
+  sys: 'Your blood pressure?', dia: 'Your blood pressure?', hr: 'Resting heart rate?', spo2: 'Blood oxygen (SpO₂)?', temp: 'Body temperature?',
+  glu: 'Fasting blood glucose?', sleep: 'Hours slept last night?', mood: 'How is your mood?', stress: 'How stressed are you?',
+  water: 'Fluids drunk today?', exercise: 'Exercise today?', mass: 'Body mass today?', vision: 'Any change in your vision?',
+  rad: 'Dosimeter reading today?', co2: 'Cabin CO₂ on the display?',
+};
