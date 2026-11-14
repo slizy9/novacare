@@ -97,6 +97,7 @@ const Crew = (() => {
         md, env: s.env, readiness: Engine.readiness(), days, latest, systems,
         advisories: adv.map((a) => ({ key: a.key, title: a.title, level: a.level, trend: !!a.trend, ind: a.ind, detail: a.detail, who: a.esc.who })),
         dose: Engine.cumulativeDose(), checkedInToday: Engine.checkedIn(s.days[md]),
+        med: typeof Medical !== 'undefined' ? Medical.of(s, meta.sim ? meta.id : null) : null, // allergies etc., for the emergency flow
         compliance: last7.length ? last7.filter((x) => x.checkedIn).length / last7.length : 0,
         updatedAt: meta.updatedAt || new Date().toISOString(), cached: !!meta.cached,
       };

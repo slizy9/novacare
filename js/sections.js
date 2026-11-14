@@ -92,12 +92,20 @@ function mateHtml(id) {
 
 /* ---------- Emergency ---------- */
 function emergencyHtml(md) {
-  const all = Crew.members(); const i = all.findIndex((m) => m.id === md.id); const m = all[i] || { name: md.name || 'Crew member', latest: {}, advisories: [], id: md.id };
+  const all = Crew.members(); const i = all.findIndex((m) => m.id === md.id); const m = all[i] || { name: md.name || 'Crew member', latest: {}, advisories: [], systems: {}, med: null, id: md.id };
   const env = Engine.env();
   if (md.step === 'pick') {
     return `<div class="sheet narrow emg" role="dialog" aria-modal="true" aria-label="Emergency">
-      <header><span class="emg-ic">${icon('siren')}</span><div class="grow"><h2>Emergency for ${esc(m.name)}</h2><p class="muted small">Choose what is happening. The crew is alerted and the matching protocol opens.</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
-      <div class="sheet-b one"><div class="emg-pick">${EMERGENCIES.map((e) => `<button data-act="emgtype" data-v="${e.id}">${icon(e.icon)}<span>${e.name}</span></button>`).join('')}</div>
+      <header><span class="emg-ic">${icon('siren')}</span><div class="grow"><h2>Emergency for ${esc(m.name)}</h2><p class="muted small">Describe what is happening, or choose it below. The crew is alerted and NovaCare tells you what to do with what is on board.</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+      <div class="sheet-b one">
+        <form id="emg-describe" class="emg-desc">
+          <label for="emg-text">Describe the situation</label>
+          <div class="ask-row"><textarea id="emg-text" name="text" class="text" rows="2" maxlength="400" placeholder="e.g. She ate something with peanuts, her lips are swelling and she is wheezing">${esc(md.text || '')}</textarea>${micBtn('emg-text')}</div>
+          ${md.noMatch ? '<p class="auth-err">I could not tell which situation this is — choose the closest one below.</p>' : ''}
+          <button class="btn sos" type="submit">${icon('siren')}Get instructions</button>
+        </form>
+        <p class="emg-or"><span>or choose the situation</span></p>
+        <div class="emg-pick">${EMERGENCIES.map((e) => `<button data-act="emgtype" data-v="${e.id}">${icon(e.icon)}<span>${e.name}</span></button>`).join('')}</div>
       <p class="muted small">If you are unsure, choose the closest match — you can switch protocol later. In a life-threatening situation, act first and log after.</p></div></div>`;
   }
   const e = EMG[md.em] || EMERGENCIES[0]; const alert = Crew.alerts().find((a) => a.id === md.alertId);
@@ -110,12 +118,17 @@ function emergencyHtml(md) {
     <header class="emg-h"><span class="emg-ic">${icon(e.icon)}</span><div class="grow"><h2>${e.name}</h2><p class="small">${esc(m.name)} · started <span id="em-timer" class="num" data-start="${alert ? alert.createdAt : new Date().toISOString()}">0:00</span> ago</p></div>
       <span class="emg-sent">${icon(alert && alert.pending ? 'cloudOff' : 'bell')}${sent}</span><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b">
-      <section><h3>Do this now</h3>
+      <section>
+        ${md.text ? `<p class="emg-said">${icon('chat')}<span>“${esc(md.text)}”</span>${(md.others || []).length ? ` <span class="muted small">Also possible:</span> ${md.others.map((o) => `<button class="chip-s" data-act="emgtype" data-v="${o}">${esc(EMG[o].name)}</button>`).join('')}` : ''}</p>` : ''}
+        <h3>Do this now</h3>
         <ol class="steps">${e.steps.map((s, k) => `<li><button data-act="emgstep" data-k="${k}" aria-pressed="${!!md.done[k]}" class="${md.done[k] ? 'done' : ''}"><span class="n num">${md.done[k] ? icon('check') : k + 1}</span><span>${esc(s)}</span></button></li>`).join('')}</ol>
         <p class="esc"><b>Ground support:</b> ${env.name} — ${env.commNote}</p>
+        ${emgSuppliesHtml(e.id, m)}
+        ${emgAskHtml(md)}
       </section>
       <aside class="emg-side">
         <h3>What NOVACARE knows about ${esc(firstName(m))}</h3>
+        ${emgProfileHtml(m)}
         <dl class="crew-vitals col">${rel.map(({ id }) => vitalCell(m, id, IND[id].short)).join('')}</dl>
         ${hints.length ? `<ul class="hints">${hints.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : '<p class="muted small">No earlier warning signs in the latest readings.</p>'}
         <p class="muted small">Last readings may be hours old. Measure again now and trust what you see over stored data.</p>

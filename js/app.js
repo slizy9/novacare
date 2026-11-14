@@ -129,8 +129,9 @@ const PERSONAL = [
   { v: 'today', label: 'Today', icon: 'checks' },
   { v: 'vitals', label: 'Vitals', icon: 'heart' },
   { v: 'hazards', label: 'Hazards', icon: 'hazard' },
+  { v: 'medical', label: 'Medical profile', icon: 'care' },
 ];
-const SUB_ALIAS = { status: 'overview', routine: 'today', vitals: 'vitals', hazards: 'hazards', overview: 'overview', today: 'today' };
+const SUB_ALIAS = { status: 'overview', routine: 'today', vitals: 'vitals', hazards: 'hazards', overview: 'overview', today: 'today', medical: 'medical' };
 
 const LOGO = '<svg class="logo" viewBox="0 0 48 40" aria-hidden="true"><ellipse class="lg-ring" cx="24" cy="21" rx="21" ry="8" transform="rotate(-22 24 21)"/><path class="lg-plus" d="M19 5h10v10h10v10H29v10H19V25H9V15h10z"/><ellipse class="lg-ring" cx="24" cy="21" rx="21" ry="8" transform="rotate(-22 24 21)" pathLength="100" stroke-dasharray="50 50"/></svg>';
 const SWOOSH = '<svg class="swoosh" viewBox="0 0 220 44" aria-hidden="true"><defs><linearGradient id="swg" x1="0" x2="1"><stop offset="0" stop-color="#ff4f9a" stop-opacity="0"/><stop offset="1" stop-color="#ff4f9a"/></linearGradient></defs><path d="M4 40C50 14 120 6 196 12" fill="none" stroke="url(#swg)" stroke-width="3" stroke-linecap="round"/><path d="M206 0c1.5 7 3.5 9 10 11-6.5 2-8.5 4-10 11-1.5-7-3.5-9-10-11 6.5-2 8.5-4 10-11z" fill="#ff4f9a"/></svg>';
@@ -172,7 +173,8 @@ function viewLobby() {
   const cta = locked
     ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
     : `${due ? `<button class="btn primary lg" data-act="checkin">${icon('plus')}Start check-in<span class="btn-note">${due} due</span></button>` : ''}
-       <button class="btn ${due ? 'ghost' : 'primary'} lg" data-act="view" data-v="personal">${icon('pulse')}My health</button>`;
+       <button class="btn ${due ? 'ghost' : 'primary'} lg" data-act="view" data-v="personal">${icon('pulse')}My health</button>
+       <button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>`;
   const hero = `<section class="card hero lobby-hero">
       <div class="hero-main"><p class="hero-greet">${greeting()}${first ? ', ' + esc(first) : ''}</p>
         <h1 class="hero-title">${SWOOSH}Mission lobby</h1>
@@ -278,7 +280,7 @@ function overviewTop() {
           <svg class="ecg" viewBox="0 0 170 60" aria-hidden="true"><path d="M0 34h38l8-8 8 8h10l7-26 9 48 8-30 6 8h12l7-14 8 14h41"/></svg></button></section>
     </div>
     <section class="card ov-health"><h2>Health</h2>
-      ${item('sub', 'vitals', 'pulse', 'Vitals')}${item('sub', 'today', 'calendar', 'Routine')}${item('sub', 'hazards', 'hazard', 'Hazards')}${item('bodystatus', '', 'layers', 'Body Status')}</section>
+      ${item('checkin', '', 'plus', 'Add info')}${item('ask', '', 'chat', 'Questions')}${item('sub', 'vitals', 'pulse', 'Vitals')}${item('sub', 'today', 'calendar', 'Routine')}${item('sub', 'hazards', 'hazard', 'Hazards')}${item('sub', 'medical', 'care', 'Medical profile')}${item('bodystatus', '', 'layers', 'Body Status')}</section>
     <section class="card ov-body" id="systems"><div class="ov-holo">${bodyModel(sel)}</div>
       <div class="ov-sys" aria-live="polite">${sys
         ? `<div class="ov-sys-h"><h2>${esc(sys.name)}</h2>${pill(Engine.systemLevel(sel))}</div>
@@ -302,7 +304,7 @@ function osdrCard(sel) {
 
 function viewPersonal() {
   const due = Engine.dueList().length;
-  const body = { overview: viewStatus, today: viewRoutine, vitals: viewVitals, hazards: viewHazards }[ui.sub]();
+  const body = { overview: viewStatus, today: viewRoutine, vitals: viewVitals, hazards: viewHazards, medical: viewMedical }[ui.sub]();
   return pageHead(`${state.name ? esc(state.name.split(' ')[0]) + '’s' : 'Your'} health`, `Mission day ${state.md} · ${due ? `${due} measurement${due > 1 ? 's' : ''} due` : 'everything is logged for today'}`,
     ui.sub === 'overview' ? '' : `<button class="btn primary" data-act="checkin">${icon('plus')}Start check-in</button>`) +
     `<nav class="subnav" aria-label="Personal sections"><span class="ind" aria-hidden="true"></span>${PERSONAL.map((p) => `<button class="${ui.sub === p.v ? 'on' : ''}" data-act="sub" data-v="${p.v}" ${ui.sub === p.v ? 'aria-current="page"' : ''}>${icon(p.icon)}${p.label}</button>`).join('')}</nav>` + body;
@@ -706,11 +708,12 @@ function renderModal() {
   if (!m) { el.hidden = true; el.innerHTML = ''; el.dataset.key = ''; el.classList.remove('out'); document.body.classList.remove('lock'); return; }
   el.hidden = false; document.body.classList.add('lock');
   el.innerHTML = m.type === 'measure' ? measureHtml(m) : m.type === 'done' ? doneHtml(m) : m.type === 'detail' ? detailHtml(m.id) : m.type === 'reauth' ? reauthHtml() : m.type === 'mate' ? mateHtml(m.id) : m.type === 'emergency' ? emergencyHtml(m)
-    : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
+    : m.type === 'ask' ? askHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
   const key = m.type + (m.step || '') + (m.i ?? '');
   el.classList.toggle('fresh', el.dataset.key !== key); el.dataset.key = key;
   tickTimer();
   if (m.type === 'reauth') { const i = $('#ra-pw'); if (i) i.focus(); }
+  if (m.type === 'ask') { const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight; const i = $('#ask-in'); if (i && !m.listening) i.focus(); }
   if (['newmission', 'joinmission', 'invitem'].includes(m.type) && el.classList.contains('fresh')) { const i = $('#modal input.text'); if (i) i.focus(); }
   if (m.type === 'measure') { syncSave(); const inp = $('#modal input[data-in]'); if (inp) inp.focus(); }
 }
@@ -773,7 +776,7 @@ const actions = {
     const m = ui.modal; const mate = Crew.members().find((x) => x.id === m.id) || { id: m.id, name: m.name };
     if (m.alertId) { // switching protocol keeps the same alert
       Crew.writeAlerts(Crew.alerts().map((a) => a.id === m.alertId ? { ...a, type: d.v, pending: Auth.cloud() } : a)); Sync.run();
-    } else m.alertId = Crew.raise(mate, d.v).id;
+    } else m.alertId = Crew.raise(mate, d.v, m.text || '').id;
     m.step = 'protocol'; m.em = d.v; m.done = {};
     render(); toast(Auth.cloud() && Sync.status() !== 'synced' ? 'Emergency saved — crew alerted when the link is back' : 'Crew alerted');
   },
@@ -790,6 +793,23 @@ const actions = {
     render(); window.scrollTo(0, 0); Sync.run(); toast('Exploring as a guest — data stays on this device');
   },
   missiontab(d) { navigate(() => { ui.view = 'mission'; ui.missionTab = d.v; ui.modal = null; render(); }); },
+  ask() { ui.modal = { type: 'ask', chat: [], speak: false }; renderModal(); },
+  askq(d) { askNow(d.q); },
+  emgq(d) { emgAskNow(d.q); },
+  mic(d, el) {
+    if (Voice.listening()) { Voice.stop(); return; }
+    const input = $('#' + d.target); if (!input) return;
+    el.classList.add('on'); input.placeholder = 'Listening…';
+    const ok = Voice.listen((text) => {
+      input.value = text;
+      if (d.target === 'ask-in') askNow(text); else if (d.target === 'emg-ask-in') emgAskNow(text); else if (d.target === 'emg-text') describeNow(text);
+    }, () => { el.classList.remove('on'); });
+    if (!ok) { el.classList.remove('on'); toast('Voice input is not available in this browser'); }
+  },
+  medkit() {
+    const r = Inventory.importRows(MED_KIT.map(([name, cat, qty, unit, min]) => ({ name, cat, qty, unit, min })));
+    renderModal(); toast(`${r.added} medical items added to the ship inventory${r.updated ? `, ${r.updated} updated` : ''}`);
+  },
   joindir(d) {
     const m = Missions.directory().find((x) => x.code === d.code);
     try { Missions.join(d.code, m); ui.sys = null; navigate(render); toast(`You joined ${m && m.name ? m.name : 'mission ' + d.code}`); }
@@ -888,6 +908,27 @@ const actions = {
   reset() { if (confirm('Erase all readings and start a new mission at day 1?')) { const n = state.name, e = state.env; state = Engine.fresh(); state.name = n; state.env = e; Engine.save(); ui.sys = null; ui.modal = null; render(); toast('New mission started — log your first check-in'); } },
 };
 
+/* ---------- Questions and emergency help ---------- */
+function askNow(q) {
+  q = String(q || '').trim(); const m = ui.modal; if (!q || !m || m.type !== 'ask') return;
+  const a = Assistant.answer(q); m.chat = [...(m.chat || []), { q, a }].slice(-20); renderModal();
+  if (m.speak && a.say) Voice.speak(a.say);
+}
+function emgMate(m) { return Crew.members().find((x) => x.id === m.id) || { id: m.id, name: m.name || 'Crew member', latest: {}, advisories: [], systems: {}, med: null }; }
+function emgAskNow(q) {
+  q = String(q || '').trim(); const m = ui.modal; if (!q || !m || m.type !== 'emergency') return;
+  const a = Assistant.answer(q, { person: emgMate(m), emg: m.em }); m.ask = [...(m.ask || []), { q, a }].slice(-10); renderModal();
+  const box = $('.emg-ask'); if (box) box.scrollIntoView({ block: 'end' });
+}
+/* "Describe what is happening": recognise the situation and open its protocol straight away. */
+function describeNow(text) {
+  text = String(text || '').trim(); const m = ui.modal; if (!text || !m || m.type !== 'emergency') return;
+  const guess = Emergency.classify(text);
+  m.text = text;
+  if (!guess.length) { m.noMatch = true; renderModal(); return; }
+  m.others = guess.slice(1, 4); actions.emgtype({ v: guess[0] });
+}
+
 document.addEventListener('click', (ev) => {
   if (ev.target.id === 'modal') { actions.close(); return; }
   const el = ev.target.closest('[data-act]'); if (!el) return;
@@ -911,6 +952,14 @@ document.addEventListener('submit', (ev) => {
     ev.preventDefault();
     try { const id = ui.modal.id; Inventory.save(Object.fromEntries(new FormData(ev.target)), id); ui.modal = null; render(); toast(id ? 'Item updated' : 'Item added to the ship inventory'); }
     catch (e) { ui.modal.err = e.message; renderModal(); }
+  }
+  if (ev.target.id === 'ask-form') { ev.preventDefault(); askNow(new FormData(ev.target).get('q')); }
+  if (ev.target.id === 'emg-ask-form') { ev.preventDefault(); emgAskNow(new FormData(ev.target).get('q')); }
+  if (ev.target.id === 'emg-describe') { ev.preventDefault(); describeNow(new FormData(ev.target).get('text')); }
+  if (ev.target.id === 'medical-form') {
+    ev.preventDefault(); const f = new FormData(ev.target); const lines = (k) => String(f.get(k) || '').split('\n').map((x) => x.trim()).filter(Boolean);
+    Medical.save({ blood: f.get('blood'), allergies: f.getAll('alg'), other: f.get('other'), meds: lines('meds'), conditions: lines('conditions'), notes: f.get('notes') });
+    Crew.refresh(true); render(); toast('Medical profile saved');
   }
   if (ev.target.id === 'reauth-form') {
     ev.preventDefault();
@@ -942,6 +991,7 @@ document.addEventListener('change', (ev) => {
       toast(r.added + r.updated ? `${r.added} item${r.added === 1 ? '' : 's'} added, ${r.updated} updated` : 'No items found — use columns: name, category, quantity, unit, minimum, note'); });
   }
   if (ev.target.id === 'set-len') { const v = Math.round(+ev.target.value); if (v >= 7 && v <= 1200) { state.missionDays = v; Engine.save(); render(); } }
+  if (ev.target.id === 'ask-speak' && ui.modal) ui.modal.speak = ev.target.checked;
   if (ev.target.id === 'set-sim') { state.showSim = ev.target.checked; Engine.save(); Crew.refresh(true); render(); }
 });
 

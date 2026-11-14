@@ -1,6 +1,8 @@
 /* NOVACARE — one stroke icon set (24px grid, 1.8 stroke), drawn after Lucide (ISC licence). */
 const ICONS = {
   bars: '<rect x="3" y="13" width="4" height="8" rx="1.5"/><rect x="10" y="8" width="4" height="13" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/>',
   box: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
   care: '<rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M12 10.5v6M9 13.5h6"/>',
   upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
