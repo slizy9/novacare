@@ -962,4 +962,9 @@ render();
 if (Auth.user()) Sync.run();
 
 // cache the app itself so it opens with no signal (needs http/https, not file://)
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+// when a new version of the app is published, its worker takes over and the page reloads once to show it
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  const hadWorker = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadWorker && !reloaded && !ui.modal) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
+}

@@ -1,6 +1,6 @@
 /* NOVACARE — offline cache so the app opens with no signal.
    Bump VERSION whenever you change the app files. */
-const VERSION = 'novacare-v10';
+const VERSION = 'novacare-v11';
 const ASSETS = ['./', 'index.html', 'css/styles.css', 'js/data.js', 'js/osdr.js', 'js/icons.js', 'js/art.js', 'js/config.js', 'js/vendor/supabase.js', 'js/auth.js', 'js/engine.js', 'js/crew.js', 'js/missions.js', 'js/sections.js', 'js/app.js',
   'img/station.jpg', 'fonts/inter-latin-wght-normal.woff2', 'fonts/inter-latin-ext-wght-normal.woff2', 'fonts/fraunces-latin-wght-normal.woff2'];
 
@@ -16,7 +16,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then((res) => {
+    // 'no-cache': always ask the server whether the file changed, so a new version shows up on the next load
+    fetch(e.request, { cache: 'no-cache' }).catch(() => fetch(e.request)).then((res) => {
       const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); return res;
     }).catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('index.html')))
   );
