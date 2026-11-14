@@ -107,3 +107,21 @@ function statusHtml(m) {
       ${q.type === 'many' ? `<button class="btn primary lg save-big" data-act="stnext" ${v && v.length ? '' : 'disabled'}>${m.i < n - 1 ? 'Next' : 'Finish'}${icon('next')}</button>` : ''}</footer>
   </div>`;
 }
+
+/* ---------- ask the crew for help ---------- */
+const HELP_WHY = ['Feeling unwell', 'Injured', 'Hard to breathe', 'Pain', 'Need to talk', 'Equipment or task'];
+function helpHtml(m) {
+  return `<div class="sheet narrow helpreq" role="dialog" aria-modal="true" aria-label="Ask your crew for help">
+    <header><div><p class="kicker">Ask your crew for help</p><h2>Everyone on your mission is alerted</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <form id="help-form" class="sheet-b one">
+      <div class="st-opts">
+        <button type="button" class="${m.urgent ? 'on' : ''} urgent" data-act="helpurg" data-v="1">${icon('siren')}<span><b>I need help now</b><small>Crewmates come to you right away</small></span></button>
+        <button type="button" class="${m.urgent ? '' : 'on'}" data-act="helpurg" data-v="0">${icon('users')}<span><b>I could use a hand</b><small>Not urgent — when someone is free</small></span></button>
+      </div>
+      <div class="field"><label>What is it about? <span class="muted">(optional)</span></label>
+        <div class="chips ask-sug">${HELP_WHY.map((w) => `<button type="button" class="${m.why.includes(w) ? 'on' : ''}" data-act="helpwhy" data-v="${w}">${w}</button>`).join('')}</div></div>
+      <div class="ask-row"><input id="help-note" name="note" class="text" type="text" maxlength="160" placeholder="Add a short note (where you are, what happened)">${micBtn('help-note')}</div>
+      <button class="btn ${m.urgent ? 'sos' : 'primary'} lg save-big" type="submit">${icon('bell')}${m.urgent ? 'Alert the crew now' : 'Send to the crew'}</button>
+      <p class="muted small">${Auth.cloud() ? 'Sent to everyone on your mission. With no signal it is saved and sent when the link is back.' : 'Shown to crewmates who use this device.'}</p>
+    </form></div>`;
+}

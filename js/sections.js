@@ -16,6 +16,7 @@ function timeAgo(iso) {
 }
 
 function pageHead(title, desc, actions = '') {
+  if (!/[<&]/.test(title)) title = title.replace(/(\S+)$/, '<em>$1</em>'); // last word in italic serif
   return `<header class="page-h"><div><h1>${SWOOSH}${title}</h1>${desc ? `<p>${desc}</p>` : ''}</div>${actions ? `<div class="page-a">${actions}</div>` : ''}</header>`;
 }
 
@@ -147,8 +148,9 @@ function bannerHtml() {
   if (!act.length) return '';
   const u = Auth.user();
   return act.slice(-3).reverse().map((a) => `<div class="banner" role="alert">${icon('siren')}
-    <p><b>Emergency: ${a.aboutId === u.id || (u.uid && a.aboutId === u.uid) ? 'you' : esc(a.aboutName)}</b> — ${esc((EMG[a.type] || {}).name || a.type)} · raised by ${esc(a.fromName)} · ${timeAgo(a.createdAt)}${a.pending ? ' · waiting for link' : ''}</p>
-    <button class="btn sm light" data-act="emgopen" data-id="${a.id}">Open protocol</button><button class="btn sm ghost-light" data-act="emgdone" data-id="${a.id}">Resolve</button></div>`).join('');
+    ${HELP_TYPES[a.type] ? `<p><b>${a.fromId === u.id ? 'You asked the crew for help' : `${esc(a.fromName)} is asking for help`}</b> — ${esc(alertName(a.type).toLowerCase())}${a.note ? ` · “${esc(a.note)}”` : ''} · ${timeAgo(a.createdAt)}${a.pending ? ' · waiting for link' : ''}</p>`
+      : `<p><b>Emergency: ${a.aboutId === u.id || (u.uid && a.aboutId === u.uid) ? 'you' : esc(a.aboutName)}</b> — ${esc(alertName(a.type))} · raised by ${esc(a.fromName)} · ${timeAgo(a.createdAt)}${a.pending ? ' · waiting for link' : ''}</p>`}
+    ${HELP_TYPES[a.type] && a.fromId === u.id ? '' : `<button class="btn sm light" data-act="emgopen" data-id="${a.id}">${HELP_TYPES[a.type] ? 'Help them' : 'Open protocol'}</button>`}<button class="btn sm ghost-light" data-act="emgdone" data-id="${a.id}">${HELP_TYPES[a.type] && a.fromId === u.id ? 'Cancel request' : 'Resolve'}</button></div>`).join('');
 }
 
 /* ---------- crew charts ---------- */
@@ -218,7 +220,7 @@ function viewMission() {
   for (let d = md; d >= Math.max(1, md - 6); d--) {
     const items = [];
     crew.forEach((m) => { const row = m.days.find((p) => p.md === d); if (row) row.newAdv.filter((a) => a.level >= 2).forEach((a) => items.push({ level: a.level, text: `${m.me ? 'You' : esc(m.name)}: ${esc(a.title)}` })); });
-    alerts.filter((a) => a.md === d).forEach((a) => items.push({ level: 3, text: `Emergency raised for ${esc(a.aboutName)} — ${esc((EMG[a.type] || {}).name || a.type)}${a.status === 'resolved' ? ' (resolved)' : ''}` }));
+    alerts.filter((a) => a.md === d).forEach((a) => items.push({ level: 3, text: `${HELP_TYPES[a.type] ? `${esc(a.fromName)} asked the crew for help` : `Emergency raised for ${esc(a.aboutName)} — ${esc(alertName(a.type))}`}${a.status === 'resolved' ? ' (resolved)' : ''}` }));
     const n = crew.filter((m) => { const row = m.days.find((p) => p.md === d); return row && row.checkedIn; }).length;
     if (items.length || d === md) log.push({ d, items, n });
   }

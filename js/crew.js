@@ -308,3 +308,6 @@ const EMERGENCIES = [
     ] },
 ];
 const EMG = Object.fromEntries(EMERGENCIES.map((e) => [e.id, e]));
+/* "Ask the crew for help" requests travel as alerts too, so every crewmate gets them. */
+const HELP_TYPES = { help: { name: 'Needs help now', urgent: true }, assist: { name: 'Asked for a hand (not urgent)', urgent: false } };
+const alertName = (type) => (HELP_TYPES[type] || EMG[type] || {}).name || type;

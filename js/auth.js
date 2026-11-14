@@ -355,7 +355,7 @@ const Sync = (() => {
   if (typeof window !== 'undefined') {
     window.addEventListener('online', () => run());
     window.addEventListener('offline', () => { if (Auth.user() && Auth.cloud()) set('offline'); });
-    setInterval(() => { if (Auth.user() && status !== 'syncing') run(); }, 60000);
+    setInterval(() => { if (Auth.user() && status !== 'syncing') run(); }, 30000); // crew alerts and help requests arrive within ~30 s
   }
 
   return { touch, run, status: () => status, pending: () => !!(Auth.user() && meta().dirty), onChange: (f) => listeners.push(f) };

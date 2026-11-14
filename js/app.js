@@ -173,13 +173,22 @@ function viewLobby() {
   const cta = locked
     ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
     : `<button class="btn primary lg" data-act="checkin">${icon('plus')}${due ? `Start check-in<span class="btn-note">${due} due</span>` : 'Add info'}</button>
-       <button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>`;
+       <button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>
+       <button class="btn sos lg" data-act="help">${icon('siren')}Ask crew for help</button>`;
+  // header in the style of the references: eyebrow, headline with an italic word, key numbers, a glass "live" panel
+  const hrS = Engine.series('hr').slice(-10); const hrNow = Engine.status('hr');
+  const spark = (() => { if (hrS.length < 2) return ''; const lo = Math.min(...hrS.map((p) => p.v)) - 3, hi = Math.max(...hrS.map((p) => p.v)) + 3;
+    const pts = hrS.map((p, k) => `${(k / (hrS.length - 1)) * 200},${50 - ((p.v - lo) / (hi - lo || 1)) * 44}`); return `<svg viewBox="0 0 200 54" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.join(' ')}"/><circle cx="200" cy="${pts[pts.length - 1].split(',')[1]}" r="3.5"/></svg>`; })();
+  const stat = (n, l) => `<div class="hstat"><b class="num">${n}</b><span>${l}</span></div>`;
   const hero = `<section class="card hero lobby-hero">
-      <div class="hero-main"><p class="hero-greet">${greeting()}${first ? ', ' + esc(first) : ''}</p>
-        <h1 class="hero-title">${SWOOSH}Mission lobby</h1>
+      <div class="hero-main"><p class="eyebrow">${has ? esc(cur.name) : locked ? 'Welcome aboard' : 'Personal space'} · ${esc(ENVIRONMENTS[cur.env].short)}</p>
+        <h1 class="hero-title">${greeting()}${first ? `, <em>${esc(first)}.</em>` : '.'}</h1>
         <p class="lobby-lead">${lead}</p>
-        <div class="hero-cta">${cta}</div></div>
-      <div class="lobby-orb" aria-hidden="true">${missionArt(cur.env)}</div>
+        <div class="hero-cta">${cta}</div>
+        ${locked ? '' : `<div class="hstats">${stat(me.readiness ?? '—', 'readiness')}${stat(due, due === 1 ? 'reading due' : 'readings due')}${stat(`MD ${state.md}`, has ? `of ${len} days` : 'mission day')}${stat(alerts, alerts === 1 ? 'active alert' : 'active alerts')}</div>`}</div>
+      ${locked ? '' : `<div class="hero-live"><div class="glass"><p class="glass-h"><span>Heart rate · recent</span><span class="live"><i></i>Live</span></p>
+        <p class="glass-v"><b class="num">${hrNow.v ?? '—'}</b> bpm</p>${spark || '<p class="muted small">Log a check-in to see your trend.</p>'}
+        <p class="glass-f">${hrNow.v != null ? `${levelText(hrNow.level)} · MD ${hrNow.md}` : 'No reading yet'}</p></div></div>`}
     </section>`;
   if (locked) return hero;
 
@@ -318,7 +327,7 @@ function viewPersonal() {
   const due = Engine.dueList().length;
   const body = { overview: viewStatus, today: viewRoutine, vitals: viewVitals, hazards: viewHazards, medical: viewMedical }[ui.sub]();
   return pageHead(`${state.name ? esc(state.name.split(' ')[0]) + '’s' : 'Your'} health`, `Mission day ${state.md} · ${due ? `${due} measurement${due > 1 ? 's' : ''} due` : 'everything is logged for today'}`,
-    ui.sub === 'overview' ? '' : `<button class="btn primary" data-act="checkin">${icon('plus')}Start check-in</button>`) +
+    `<button class="btn sos" data-act="help">${icon('siren')}Ask crew for help</button>${ui.sub === 'overview' ? '' : `<button class="btn primary" data-act="checkin">${icon('plus')}Start check-in</button>`}`) +
     `<nav class="subnav" aria-label="Personal sections"><span class="ind" aria-hidden="true"></span>${PERSONAL.map((p) => `<button class="${ui.sub === p.v ? 'on' : ''}" data-act="sub" data-v="${p.v}" ${ui.sub === p.v ? 'aria-current="page"' : ''}>${icon(p.icon)}${p.label}</button>`).join('')}</nav>` + body;
 }
 
@@ -736,7 +745,7 @@ function renderModal() {
   if (!m) { el.hidden = true; el.innerHTML = ''; el.dataset.key = ''; el.classList.remove('out'); document.body.classList.remove('lock'); return; }
   el.hidden = false; document.body.classList.add('lock');
   el.innerHTML = m.type === 'measure' ? measureHtml(m) : m.type === 'done' ? doneHtml(m) : m.type === 'detail' ? detailHtml(m.id) : m.type === 'reauth' ? reauthHtml() : m.type === 'mate' ? mateHtml(m.id) : m.type === 'emergency' ? emergencyHtml(m)
-    : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
+    : m.type === 'help' ? helpHtml(m) : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
   const key = m.type + (m.step || '') + (m.i ?? '');
   el.classList.toggle('fresh', el.dataset.key !== key); el.dataset.key = key;
   tickTimer();
@@ -810,8 +819,16 @@ const actions = {
   },
   emgstep(d) { const m = ui.modal; m.done[d.k] = !m.done[d.k]; renderModal(); },
   emgswitch() { ui.modal.step = 'pick'; renderModal(); },
-  emgresolve() { if (ui.modal.alertId) Crew.resolve(ui.modal.alertId); ui.modal = null; render(); toast('Emergency marked resolved'); },
-  emgopen(d) { const a = Crew.alerts().find((x) => x.id === d.id); if (!a) return; ui.modal = { type: 'emergency', step: 'protocol', id: a.aboutId, name: a.aboutName, alertId: a.id, em: a.type, done: {} }; renderModal(); },
+  emgresolve() { if (ui.modal.alertId) Crew.resolve(ui.modal.alertId); if (ui.modal.fromHelp) Crew.resolve(ui.modal.fromHelp); ui.modal = null; render(); toast('Emergency marked resolved'); },
+  emgopen(d) {
+    const a = Crew.alerts().find((x) => x.id === d.id); if (!a) return;
+    // a help request opens the emergency flow for that person, with what they wrote, so the helper can describe or pick the situation
+    if (HELP_TYPES[a.type]) { ui.modal = { type: 'emergency', step: 'pick', id: a.aboutId, name: a.aboutName, text: a.note || '', done: {}, fromHelp: a.id }; renderModal(); return; }
+    ui.modal = { type: 'emergency', step: 'protocol', id: a.aboutId, name: a.aboutName, alertId: a.id, em: a.type, done: {} }; renderModal();
+  },
+  help() { ui.modal = { type: 'help', urgent: true, why: [] }; renderModal(); },
+  helpurg(d) { ui.modal.urgent = d.v === '1'; renderModal(); },
+  helpwhy(d) { const w = ui.modal.why; ui.modal.why = w.includes(d.v) ? w.filter((x) => x !== d.v) : [...w, d.v]; renderModal(); },
   emgdone(d) { if (!confirm('Mark this emergency as resolved for the whole crew?')) return; Crew.resolve(d.id); render(); toast('Emergency marked resolved'); },
   togglesim() { state.showSim = true; Engine.save(); Crew.refresh(true); render(); },
   mreport() { download(`novacare-mission-${Auth.user().crew}-MD${state.md}.txt`, missionReport(), 'text/plain'); },
@@ -830,6 +847,7 @@ const actions = {
     el.classList.add('on'); input.placeholder = 'Listening…';
     const ok = Voice.listen((text) => {
       input.value = text;
+      if (d.target === 'help-note') return;
       if (d.target === 'ask-in') askNow(text); else if (d.target === 'emg-ask-in') emgAskNow(text); else if (d.target === 'emg-text') describeNow(text);
     }, () => { el.classList.remove('on'); });
     if (!ok) { el.classList.remove('on'); toast('Voice input is not available in this browser'); }
@@ -1006,6 +1024,12 @@ document.addEventListener('submit', (ev) => {
     ev.preventDefault();
     try { const id = ui.modal.id; Inventory.save(Object.fromEntries(new FormData(ev.target)), id); ui.modal = null; render(); toast(id ? 'Item updated' : 'Item added to the ship inventory'); }
     catch (e) { ui.modal.err = e.message; renderModal(); }
+  }
+  if (ev.target.id === 'help-form') {
+    ev.preventDefault(); const m = ui.modal; const note = [m.why.join(', '), String(new FormData(ev.target).get('note') || '').trim()].filter(Boolean).join(' — ');
+    const me = Crew.members()[0]; const a = Crew.raise(me, m.urgent ? 'help' : 'assist', note);
+    ui.modal = null; render();
+    toast(Auth.cloud() ? (a.pending && Sync.status() !== 'synced' ? 'Help request saved — the crew gets it as soon as the link is back' : 'Help request sent to your crew') : 'Help request shown to the crew on this device');
   }
   if (ev.target.id === 'ask-form') { ev.preventDefault(); askNow(new FormData(ev.target).get('q')); }
   if (ev.target.id === 'emg-ask-form') { ev.preventDefault(); emgAskNow(new FormData(ev.target).get('q')); }
