@@ -172,8 +172,7 @@ function viewLobby() {
     : 'Your personal space. Log check-ins and explore every section — join or create a mission any time from the Mission tab.';
   const cta = locked
     ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
-    : `${due ? `<button class="btn primary lg" data-act="checkin">${icon('plus')}Start check-in<span class="btn-note">${due} due</span></button>` : ''}
-       <button class="btn ${due ? 'ghost' : 'primary'} lg" data-act="view" data-v="personal">${icon('pulse')}My health</button>
+    : `<button class="btn primary lg" data-act="checkin">${icon('plus')}${due ? `Start check-in<span class="btn-note">${due} due</span>` : 'Add info'}</button>
        <button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>`;
   const hero = `<section class="card hero lobby-hero">
       <div class="hero-main"><p class="hero-greet">${greeting()}${first ? ', ' + esc(first) : ''}</p>
@@ -184,14 +183,27 @@ function viewLobby() {
     </section>`;
   if (locked) return hero;
 
-  const kpi = (label, value, sub, cls = '', count = false) => `<div class="kpi ${cls}"><span>${label}</span><b class="num" ${count ? `data-count="${value}"` : ''}>${value}</b><small>${sub}</small></div>`;
+  // one card: readiness + the vitals that matter most, each with its status
   const top = me.advisories[0];
-  const you = `<section class="lobby-sec"><div class="lobby-h"><h2>You today</h2><p>Your own status first — open My health for the details.</p></div>
-      <div class="kpis lobby-kpis">
-        ${kpi('Readiness', me.readiness ?? '—', v.level < 0 ? 'log a check-in to get a score' : v.name, v.level >= 2 ? 'down' : '', me.readiness != null)}
-        ${kpi('Due today', due, due ? `measurement${due > 1 ? 's' : ''} left to log` : 'everything is logged', due ? 'down' : '', true)}
-        ${kpi('Main concern', top ? esc(top.title) : 'None', top ? 'see My health for what to do' : 'no active advisories', top && top.level >= 2 ? 'down' : '')}
-        ${kpi('Radiation dose', me.dose.toFixed(1), 'mSv so far this mission')}
+  const vital = (id, label) => {
+    const st = Engine.status(id); const lvl = st.v == null ? -1 : st.level;
+    let val = valueText(IND[id], st.v);
+    if (id === 'sys' && st.v != null) { const d = Engine.status('dia'); val = `${st.v}/${d.v ?? '—'}<small> mmHg</small>`; }
+    return `<button class="tv ${lc(lvl)}" data-act="detail" data-id="${id}" aria-label="${esc(IND[id].name)}, open trend">
+      <span class="tv-l">${label}</span><b class="tv-v num">${val}</b>
+      <span class="tv-s"><span class="dot"></span>${st.v == null ? 'Not logged' : levelText(lvl)}${st.v != null && st.age > 0 ? ` · MD ${st.md}` : ''}</span></button>`;
+  };
+  const today = `<section class="card today" aria-label="You today">
+      <div class="today-score">${ring(me.readiness)}</div>
+      <div class="today-main">
+        <div class="today-h"><div><h2>You today</h2><p class="muted small">${v.level < 0 ? 'Log a check-in to get your readiness score.' : esc(v.reasons[0] || v.name)}</p></div>
+          <button class="btn ghost sm" data-act="view" data-v="personal">My health${icon('next')}</button></div>
+        <div class="tv-grid">${[['hr', 'Heart rate'], ['sys', 'Blood pressure'], ['spo2', 'Oxygen (SpO₂)'], ['temp', 'Temperature'], ['sleep', 'Sleep'], ['water', 'Hydration']].map(([id, l]) => vital(id, l)).join('')}</div>
+        <div class="today-foot">
+          <span class="${due ? 'l1' : 'l0'}"><span class="dot"></span>${due ? `${due} measurement${due > 1 ? 's' : ''} due today` : 'Everything logged today'}</span>
+          <span class="${top ? lc(top.level) : 'l0'}"><span class="dot"></span>${top ? esc(top.title) : 'No active concerns'}</span>
+          <span class="ln">${icon('zap')}${me.dose.toFixed(1)} mSv this mission</span>
+        </div>
       </div></section>`;
 
   let mission;
@@ -200,24 +212,23 @@ function viewLobby() {
     const items = Inventory.items(); const low = items.filter((i) => Inventory.level(i) > 0).length;
     const frac = clamp(state.md / len, 0, 1);
     mission = `<section class="card lobby-mission">
-        <div class="lm-h"><div><span class="mcard-k">${esc(ENVIRONMENTS[cur.env].short)}</span><h2>${esc(cur.name)}</h2></div>
-          <div class="btnrow"><button class="btn ghost sm" data-act="missiontab" data-v="missions">${icon('layers')}Switch mission</button><button class="btn primary sm" data-act="missiontab" data-v="status">Mission status${icon('next')}</button></div></div>
-        <div class="track" role="progressbar" aria-valuemin="1" aria-valuemax="${len}" aria-valuenow="${state.md}" aria-label="Mission progress"><i style="width:${frac * 100}%"></i></div>
-        <ul class="lm-facts">
-          <li>${icon('clock')}<b>MD ${state.md}</b> of ${len}</li>
-          <li>${icon('users')}<b>${onTrack}/${crew.length}</b> crew on track</li>
-          <li class="${alerts ? 'hot' : ''}">${icon('siren')}<b>${alerts}</b> active emergenc${alerts === 1 ? 'y' : 'ies'}</li>
-          <li class="${low ? 'warn' : ''}">${icon('box')}<b>${low}</b> supplies low or out</li>
-        </ul></section>`;
+        <div><span class="kicker">${esc(ENVIRONMENTS[cur.env].short)}</span><h2>${esc(cur.name)}</h2></div>
+        <div class="lm-prog"><div class="lm-prog-t"><span>Mission day <b class="num">${state.md}</b> of ${len}</span><span class="muted">${Math.round(frac * 100)}%</span></div>
+          <div class="track" role="progressbar" aria-valuemin="1" aria-valuemax="${len}" aria-valuenow="${state.md}" aria-label="Mission progress"><i style="width:${frac * 100}%"></i></div></div>
+        <ul class="lm-list">
+          <li>${icon('users')}<span>Crew on track</span><b class="num">${onTrack}/${crew.length}</b></li>
+          <li class="${alerts ? 'hot' : ''}">${icon('siren')}<span>Active emergencies</span><b class="num">${alerts}</b></li>
+          <li class="${low ? 'warn' : ''}">${icon('box')}<span>Supplies low or out</span><b class="num">${low}</b></li>
+        </ul>
+        <div class="lm-acts"><button class="btn ghost sm" data-act="missiontab" data-v="missions">Switch</button><button class="btn primary sm" data-act="missiontab" data-v="status">Mission status${icon('next')}</button></div>
+      </section>`;
   } else {
     mission = `<section class="card lobby-mission">
-        <div class="lm-h"><div><span class="mcard-k">Guest</span><h2>No mission yet</h2><p class="muted small">You can use every section on your own. Join a mission to share your status with a crew on this device.</p></div>
-          <div class="btnrow"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></div></section>`;
+        <div><span class="kicker">Guest</span><h2>No mission yet</h2></div>
+        <p class="muted small">Use every section on your own, or join a mission to share your status with a crew on this device.</p>
+        <div class="lm-acts"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></section>`;
   }
-  const jump = ['personal', 'crew', 'mission', 'analysis'].map((key) => { const sec = SECTIONS.find((x) => x.v === key);
-    return `<button class="jcard" data-act="view" data-v="${key}" style="--tabc:${sec.c}"><span class="jcard-h"><span class="jcard-ic">${icon(sec.icon)}</span><span>${sec.label}</span>${icon('next', 'jcard-go')}</span><span class="jcard-s">${esc(sec.desc || '')}</span></button>`; }).join('');
-  return hero + you + `<section class="lobby-sec"><div class="lobby-h"><h2>Your mission</h2><p>A short look at the whole crew.</p></div>${mission}</section>`
-    + `<section class="lobby-sec"><div class="lobby-h"><h2>Go to</h2></div><div class="jgrid">${jump}</div></section>`;
+  return hero + `<div class="lobby-grid">${today}${mission}</div>`;
 }
 
 /* ---------- Mission tab: "Status" and "Missions" (switch, create, join, browse) ---------- */
