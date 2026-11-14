@@ -1217,3 +1217,21 @@ input.text:focus, select.text:focus, textarea.text:focus { outline: none; border
 .evid-full ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; }
 .src { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; color: var(--faint); }
 .src .ic { width: 13px; height: 13px; margin-top: 3px; flex: none; }
+
+/* ---------- status update ---------- */
+.status > header h2 { font: 500 26px/1.2 var(--serif); letter-spacing: -0.02em; margin-top: 4px; }
+.status > footer { display: flex; gap: 10px; }
+.status > footer .btn { min-height: 54px; font-size: 16px; }
+.st-opts { display: grid; gap: 8px; }
+.st-opts.many { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.st-opts button { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 15.5px; font-weight: 550; transition: border-color var(--t-fast), background var(--t-fast); }
+.st-opts button:hover { border-color: var(--brand); }
+.st-opts button.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-ink); box-shadow: 0 0 0 1px var(--brand); }
+.st-face { font-size: 24px; line-height: 1; }
+.st-find { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.st-find li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+.st-find li .dot { margin-top: 7px; }
+.st-find li b { color: var(--c); } .st-find li p { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); }
+.st-due { display: inline-flex; align-items: center; gap: 6px; color: var(--brand-ink); font-weight: 600; font-size: 13px; }
+.st-due .ic { width: 15px; height: 15px; }
+@media (max-width: 520px) { .st-opts.many { grid-template-columns: minmax(0, 1fr); } }

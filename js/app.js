@@ -203,6 +203,7 @@ function viewLobby() {
           <span class="${due ? 'l1' : 'l0'}"><span class="dot"></span>${due ? `${due} measurement${due > 1 ? 's' : ''} due today` : 'Everything logged today'}</span>
           <span class="${top ? lc(top.level) : 'l0'}"><span class="dot"></span>${top ? esc(top.title) : 'No active concerns'}</span>
           <span class="ln">${icon('zap')}${me.dose.toFixed(1)} mSv this mission</span>
+          ${Status.due() ? `<button class="link st-due" data-act="status">${icon('checks')}Status update due</button>` : `<span class="ln">${icon('checks')}Next status update in ${Math.max(1, Math.round(Status.dueIn()))} h</span>`}
         </div>
       </div></section>`;
 
@@ -291,7 +292,7 @@ function overviewTop() {
           <svg class="ecg" viewBox="0 0 170 60" aria-hidden="true"><path d="M0 34h38l8-8 8 8h10l7-26 9 48 8-30 6 8h12l7-14 8 14h41"/></svg></button></section>
     </div>
     <section class="card ov-health"><h2>Health</h2>
-      ${item('checkin', '', 'plus', 'Add info')}${item('ask', '', 'chat', 'Questions')}${item('sub', 'vitals', 'pulse', 'Vitals')}${item('sub', 'today', 'calendar', 'Routine')}${item('sub', 'hazards', 'hazard', 'Hazards')}${item('sub', 'medical', 'care', 'Medical profile')}${item('bodystatus', '', 'layers', 'Body Status')}</section>
+      ${item('checkin', '', 'plus', 'Add info')}${item('status', '', 'checks', 'Status update')}${item('ask', '', 'chat', 'Questions')}${item('sub', 'vitals', 'pulse', 'Vitals')}${item('sub', 'today', 'calendar', 'Routine')}${item('sub', 'hazards', 'hazard', 'Hazards')}${item('sub', 'medical', 'care', 'Medical profile')}${item('bodystatus', '', 'layers', 'Body Status')}</section>
     <section class="card ov-body" id="systems"><div class="ov-holo">${bodyModel(sel)}</div>
       <div class="ov-sys" aria-live="polite">${sys
         ? `<div class="ov-sys-h"><h2>${esc(sys.name)}</h2>${pill(Engine.systemLevel(sel))}</div>
@@ -543,6 +544,7 @@ function settingsHtml() {
           <div class="field"><label for="set-mname" class="sm">Mission name</label><input id="set-mname" class="text" type="text" maxlength="40" value="${esc(Missions.current().name)}"></div>
           <div class="field"><label class="sm">Mission code</label><button class="codechip lg" data-act="copycode" data-code="${esc(Auth.user().crew)}" title="Copy the code">${icon('copy')}<span>${esc(Auth.user().crew)}</span></button></div>
           <div class="field"><label for="set-role" class="sm">Your role</label><input id="set-role" class="text" type="text" value="${esc(Auth.user().role)}" readonly aria-readonly="true" title="Chosen when you created your account — it cannot be changed"></div>
+          <div class="field"><label for="set-every" class="sm">Status update every</label><select id="set-every" class="text">${STATUS_EVERY.map((h) => `<option value="${h}" ${Status.every() === h ? 'selected' : ''}>${h} hours</option>`).join('')}</select></div>
           <div class="field"><label for="set-len" class="sm">Planned length (days)</label><input id="set-len" class="text num" type="number" min="7" max="1200" value="${missionLength()}"></div>
         </div>
         <label class="remember"><input type="checkbox" id="set-sim" ${state.showSim !== false ? 'checked' : ''}> Show the simulated demo crew (3 synthetic astronauts, labelled “Simulated”)</label>
@@ -713,7 +715,9 @@ function render() {
   if (!Auth.user()) { lastPage = ''; renderAuth(); return; }
   document.body.classList.remove('signed-out');
   Engine.today(); Crew.refresh();
-  if (Missions.locked() && !['lobby', 'mission'].includes(ui.view)) ui.view = 'lobby'; // pick a mission first (guests skip this)
+  if (Missions.locked() && !['lobby', 'mission'].includes(ui.view)) ui.view = 'lobby';
+  // A status update is due every few hours: ask once per visit, when nothing else is open.
+  if (!ui.modal && !ui.statusAsked && !Missions.locked() && Status.due()) { ui.statusAsked = true; setTimeout(() => { if (!ui.modal && Auth.user()) actions.status(); }, 700); } // pick a mission first (guests skip this)
   renderTop(); renderNav();
   $('#banner').innerHTML = bannerHtml();
   const page = pageKey();
@@ -732,7 +736,7 @@ function renderModal() {
   if (!m) { el.hidden = true; el.innerHTML = ''; el.dataset.key = ''; el.classList.remove('out'); document.body.classList.remove('lock'); return; }
   el.hidden = false; document.body.classList.add('lock');
   el.innerHTML = m.type === 'measure' ? measureHtml(m) : m.type === 'done' ? doneHtml(m) : m.type === 'detail' ? detailHtml(m.id) : m.type === 'reauth' ? reauthHtml() : m.type === 'mate' ? mateHtml(m.id) : m.type === 'emergency' ? emergencyHtml(m)
-    : m.type === 'ask' ? askHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
+    : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
   const key = m.type + (m.step || '') + (m.i ?? '');
   el.classList.toggle('fresh', el.dataset.key !== key); el.dataset.key = key;
   tickTimer();
@@ -834,6 +838,17 @@ const actions = {
     const r = Inventory.importRows(MED_KIT.map(([name, cat, qty, unit, min]) => ({ name, cat, qty, unit, min })));
     renderModal(); toast(`${r.added} medical items added to the ship inventory${r.updated ? `, ${r.updated} updated` : ''}`);
   },
+  status() { ui.modal = { type: 'status', i: 0, ans: {} }; renderModal(); },
+  stans(d) {
+    const m = ui.modal; const q = Status.steps(m.ans)[m.i]; const opt = q.opts.find(([v]) => String(v) === d.v); if (!opt) return;
+    const val = opt[0];
+    if (q.type === 'one') { m.ans[q.id] = val; statusNext(); return; }
+    let cur = Array.isArray(m.ans[q.id]) ? m.ans[q.id] : [];
+    cur = cur.includes(val) ? cur.filter((x) => x !== val) : val === 'none' ? ['none'] : [...cur.filter((x) => x !== 'none'), val];
+    m.ans[q.id] = cur; renderModal();
+  },
+  stnext() { statusNext(); },
+  stback() { if (ui.modal.i > 0) { ui.modal.i--; renderModal(); } },
   joindir(d) {
     const m = Missions.directory().find((x) => x.code === d.code);
     try { Missions.join(d.code, m); ui.sys = null; navigate(render); toast(`You joined ${m && m.name ? m.name : 'mission ' + d.code}`); }
@@ -932,9 +947,17 @@ const actions = {
   reset() { if (confirm('Erase all readings and start a new mission at day 1?')) { const e = state.env; state = keepAccount(Engine.fresh()); state.env = e; Engine.save(); ui.sys = null; ui.modal = null; render(); toast('New mission started — log your first check-in'); } },
 };
 
+/* Status update: next question, or save and show the result. Answers to questions that no longer apply are dropped. */
+function statusNext() {
+  const m = ui.modal; const qs = Status.steps(m.ans);
+  if (m.i < qs.length - 1) { m.i++; renderModal(); return; }
+  const keep = {}; qs.forEach((q) => { if (m.ans[q.id] !== undefined) keep[q.id] = m.ans[q.id]; });
+  m.result = Status.save(keep); Crew.refresh(true); render();
+}
+
 /* Loading the demo or restarting replaces the readings, never the person's missions, profile or name. */
 function keepAccount(next) {
-  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
+  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays', 'updateEvery'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
   if (state && state.name) next.name = state.name;
   return next;
 }
@@ -1023,6 +1046,7 @@ document.addEventListener('change', (ev) => {
       toast(r.added + r.updated ? `${r.added} item${r.added === 1 ? '' : 's'} added, ${r.updated} updated` : 'No items found — use columns: name, category, quantity, unit, minimum, note'); });
   }
   if (ev.target.id === 'set-len') { const v = Math.round(+ev.target.value); if (v >= 7 && v <= 1200) { state.missionDays = v; Engine.save(); render(); } }
+  if (ev.target.id === 'set-every') { state.updateEvery = +ev.target.value; Engine.save(); toast(`Status update every ${state.updateEvery} hours`); }
   if (ev.target.id === 'ask-speak' && ui.modal) ui.modal.speak = ev.target.checked;
   if (ev.target.id === 'set-sim') { state.showSim = ev.target.checked; Engine.save(); Crew.refresh(true); render(); }
 });

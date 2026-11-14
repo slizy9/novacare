@@ -247,6 +247,8 @@ const Engine = (() => {
         detail: `Mission dose ${dose.toFixed(0)} mSv — ${Math.round(frac * 100)}% of the ${CAREER_DOSE_LIMIT} mSv career limit.`,
         actions: ['Maximise time in shielded areas.', 'Ask ground to review your EVA and excursion plan.'] });
     }
+    // What the person reported in today's latest status update.
+    if (typeof Status !== 'undefined') { const su = Status.advisory(); if (su) add(su); }
     // A trend finding replaces the single-reading advisory for the same indicator.
     const trends = out.filter((a) => a.trend);
     for (let i = out.length - 1; i >= 0; i--) {
