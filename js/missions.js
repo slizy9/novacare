@@ -26,6 +26,10 @@ const Missions = (() => {
   /** The open mission, or a placeholder while the person has not created or joined one. */
   const current = () => list().find((m) => m.active) || { code: '', name: 'No mission yet', env: ENVIRONMENTS[state.env] ? state.env : 'iss', md: state.md || 1, len: state.missionDays || 180, none: true };
   const has = () => !!code();
+  /** A registered account must create or join a mission first. Guests can use everything without one. */
+  const locked = () => !has() && !(Auth.user() && Auth.user().guest);
+  /** How a page names the open mission ("Mission NOVA-AB12", or the guest's personal space). */
+  const label = () => (has() ? `Mission ${code()}` : 'Personal space · no mission');
 
   function activate(c, init) {
     ensure(); if (c === code()) return;
@@ -80,7 +84,7 @@ const Missions = (() => {
     ensure(); if (c === code()) return false;
     state.missions = state.missions.filter((m) => m.code !== c); delete state.archive[c]; Engine.save(); return true;
   }
-  return { list, current, has, activate, create, join, rename, leave, norm, directory, refreshDirectory };
+  return { list, current, has, locked, label, activate, create, join, rename, leave, norm, directory, refreshDirectory };
 })();
 
 /* ---------- ship inventory ----------
@@ -179,7 +183,7 @@ function crewTabs() {
 function viewInventory() {
   const u = Auth.user(); const items = Inventory.items(); const f = ui.invCat || 'all';
   const low = items.filter((i) => Inventory.level(i) === 1).length, out = items.filter((i) => Inventory.level(i) === 3).length;
-  const head = pageHead('Ship inventory', `Mission ${esc(u.crew)} · what the crew has on board, kept up to date by everyone`,
+  const head = pageHead('Ship inventory', `${esc(Missions.label())} · what the crew has on board, kept up to date by everyone`,
     `<button class="btn ghost" data-act="invupload">${icon('upload')}Upload list</button><button class="btn primary" data-act="invadd">${icon('plus')}Add item</button>`) + crewTabs() +
     '<input type="file" id="inv-file" accept=".csv,.txt,text/csv,text/plain" hidden>';
   if (!items.length) {

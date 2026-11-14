@@ -48,11 +48,11 @@ function vitalCell(m, id, label) {
 function viewCrew() {
   const all = Crew.members(); const mates = all.map((m, i) => ({ m, i })).filter((x) => !x.m.me);
   const u = Auth.user();
-  const head = pageHead('Crewmates', `Mission ${esc(u.crew)} · ${mates.length} crewmate${mates.length === 1 ? '' : 's'} · status from each person's latest check-in`,
+  const head = pageHead('Crewmates', `${esc(Missions.label())} · ${mates.length} crewmate${mates.length === 1 ? '' : 's'} · status from each person's latest check-in`,
     `<button class="btn ghost" data-act="settings">${icon('settings')}Mission settings</button>`) + crewTabs();
   if (!mates.length) {
     return head + `<section class="card empty-state">${icon('users', 'lg')}<h2>No crewmates yet</h2>
-      <p>Crewmates appear here when they join with the same mission code: <b class="code">${esc(u.crew)}</b>. You can also show the simulated demo crew from Mission settings.</p>
+      <p>${u.crew ? `Crewmates appear here when they join with the same mission code: <b class="code">${esc(u.crew)}</b>.` : 'Join or create a mission from the Mission tab to see a real crew here.'} You can also show the simulated demo crew from Mission settings.</p>
       <button class="btn primary" data-act="togglesim">Show simulated demo crew</button></section>`;
   }
   return head + `<div class="crew-grid">${mates.map(({ m, i }) => {
@@ -210,8 +210,8 @@ function viewMission() {
     if (items.length || d === md) log.push({ d, items, n });
   }
 
-  return pageHead('Mission status', `Mission ${esc(u.crew)} · ${env.name} · updates every mission day`,
-    `<button class="btn ghost" data-act="mreport">${icon('download')}Mission report</button><button class="btn primary" data-act="nextday">${icon('next')}Advance to MD ${md + 1}</button>`) +
+  return pageHead('Mission status', `${esc(Missions.label())} · ${env.name} · updates every mission day`,
+    `<button class="btn ghost" data-act="mreport">${icon('download')}Mission report</button><button class="btn primary" data-act="nextday">${icon('next')}Advance to MD ${md + 1}</button>`) + missionTabs() +
   `<section class="card mission-hero">
      <div class="mh-top"><div><span class="muted small">Mission day</span><p class="mh-day" data-count-wrap><b class="num">${md}</b><span class="num">of ${len}</span></p></div>
        <div class="mh-meta"><span>${phase}</span><span class="num">${Math.max(0, len - md)} days to go</span><span>${crew.length} crew</span></div></div>
@@ -243,7 +243,7 @@ function viewMission() {
 function missionReport() {
   const crew = Crew.members(); const env = Engine.env(); const u = Auth.user(); const L = [];
   L.push('NOVACARE — MISSION STATUS REPORT');
-  L.push(`Mission ${u.crew} · ${env.name}`);
+  L.push(`${Missions.label()} · ${env.name}`);
   L.push(`Mission day ${state.md} of ${missionLength()} · generated ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`);
   L.push('');
   L.push('CREW');

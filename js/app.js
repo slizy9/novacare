@@ -118,10 +118,10 @@ function ring(score) {
 /* ---------- views ---------- */
 /* App shell: four sections, Personal has its own sub-views. */
 const SECTIONS = [
-  { v: 'lobby', label: 'Lobby', icon: 'home', c: '#2f6bff', desc: 'Choose your mission and where to go next' },
+  { v: 'lobby', label: 'Lobby', icon: 'home', c: '#2f6bff', desc: 'Your status and a quick look at the mission' },
   { v: 'personal', label: 'Personal', icon: 'user', c: '#f0388a', desc: 'Your health, today\'s routine and status' },
   { v: 'crew', label: 'Crew', icon: 'users', c: '#7c5cff', desc: 'Your crew\'s status and emergency help' },
-  { v: 'mission', label: 'Mission', icon: 'rocket', c: '#e8590c', desc: 'Mission progress, updated every day' },
+  { v: 'mission', label: 'Mission', icon: 'rocket', c: '#e8590c', desc: 'Mission progress, switch or join missions' },
   { v: 'analysis', label: 'Analysis', icon: 'bars', c: '#12a594', desc: 'Who is doing well and who needs help' },
 ];
 const PERSONAL = [
@@ -153,61 +153,98 @@ function renderTop() {
 function renderNav() {
   const alerts = Crew.active().length; const cur = SECTIONS.find((t) => t.v === ui.view) || SECTIONS[0];
   document.documentElement.style.setProperty('--tab', cur.c);
-  const none = !Missions.has();
-  $('#nav').innerHTML = `<ul><li class="ind" aria-hidden="true"></li>${SECTIONS.map((t, i) => `<li><button class="nav-i ${ui.view === t.v ? 'on' : ''} ${none && t.v !== 'lobby' ? 'locked' : ''}" data-act="view" data-v="${t.v}" title="${none && t.v !== 'lobby' ? 'Create or join a mission first' : `${t.label} (press ${i + 1})`}" ${ui.view === t.v ? 'aria-current="page"' : ''} ${none && t.v !== 'lobby' ? 'aria-disabled="true"' : ''}>
+  const none = Missions.locked(); const free = (v) => v === 'lobby' || v === 'mission';
+  $('#nav').innerHTML = `<ul><li class="ind" aria-hidden="true"></li>${SECTIONS.map((t, i) => `<li><button class="nav-i ${ui.view === t.v ? 'on' : ''} ${none && !free(t.v) ? 'locked' : ''}" data-act="view" data-v="${t.v}" title="${none && !free(t.v) ? 'Create or join a mission first' : `${t.label} (press ${i + 1})`}" ${ui.view === t.v ? 'aria-current="page"' : ''} ${none && !free(t.v) ? 'aria-disabled="true"' : ''}>
       <span class="nav-ic">${icon(t.icon)}</span><span>${t.label}</span>${t.v === 'crew' && alerts ? `<em class="nav-badge" aria-label="${alerts} active emergencies">${alerts}</em>` : ''}</button></li>`).join('')}</ul>
     <button class="nav-set" data-act="settings" title="Mission settings" aria-label="Mission settings">${icon('settings')}</button>`;
   slideInd($('#nav ul'), 'nav');
 }
 
-/* ---------- mission lobby ---------- */
+/* ---------- mission lobby: you first, then a short look at the mission ---------- */
 function viewLobby() {
-  const u = Auth.user(); const score = Engine.readiness(); const due = Engine.dueList().length;
-  const crew = Crew.members(); const alerts = Crew.active().length; const all = Missions.list(); const cur = Missions.current();
-  const none = !Missions.has();
-  Missions.refreshDirectory(false, () => { if (ui.view === 'lobby' && !ui.modal && Auth.user()) render(); });
-  const help = crew.filter((m) => Crew.verdict(m).level >= 2).length;
-  const first = (state.name || u.name || '').split(' ')[0];
+  const u = Auth.user(); const first = (state.name || u.name || '').split(' ')[0];
+  const has = Missions.has(); const locked = Missions.locked(); const cur = Missions.current();
+  const crew = Crew.members(); const me = crew[0]; const v = Crew.verdict(me); const due = Engine.dueList().length;
+  const alerts = Crew.active().length; const len = missionLength();
+  const lead = locked ? 'Welcome aboard. Create your own mission or join one to start tracking your health with a crew.'
+    : has ? `Mission day <b>${state.md}</b> of ${len} on <b>${esc(cur.name)}</b> · ${esc(ENVIRONMENTS[cur.env].short)}.`
+    : 'Your personal space. Log check-ins and explore every section — join or create a mission any time from the Mission tab.';
+  const cta = locked
+    ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
+    : `${due ? `<button class="btn primary lg" data-act="checkin">${icon('plus')}Start check-in<span class="btn-note">${due} due</span></button>` : ''}
+       <button class="btn ${due ? 'ghost' : 'primary'} lg" data-act="view" data-v="personal">${icon('pulse')}My health</button>`;
+  const hero = `<section class="card hero lobby-hero">
+      <div class="hero-main"><p class="hero-greet">${greeting()}${first ? ', ' + esc(first) : ''}</p>
+        <h1 class="hero-title">${SWOOSH}Mission lobby</h1>
+        <p class="lobby-lead">${lead}</p>
+        <div class="hero-cta">${cta}</div></div>
+      <div class="lobby-orb" aria-hidden="true">${missionArt(cur.env)}</div>
+    </section>`;
+  if (locked) return hero;
+
+  const kpi = (label, value, sub, cls = '', count = false) => `<div class="kpi ${cls}"><span>${label}</span><b class="num" ${count ? `data-count="${value}"` : ''}>${value}</b><small>${sub}</small></div>`;
+  const top = me.advisories[0];
+  const you = `<section class="lobby-sec"><div class="lobby-h"><h2>You today</h2><p>Your own status first — open My health for the details.</p></div>
+      <div class="kpis lobby-kpis">
+        ${kpi('Readiness', me.readiness ?? '—', v.level < 0 ? 'log a check-in to get a score' : v.name, v.level >= 2 ? 'down' : '', me.readiness != null)}
+        ${kpi('Due today', due, due ? `measurement${due > 1 ? 's' : ''} left to log` : 'everything is logged', due ? 'down' : '', true)}
+        ${kpi('Main concern', top ? esc(top.title) : 'None', top ? 'see My health for what to do' : 'no active advisories', top && top.level >= 2 ? 'down' : '')}
+        ${kpi('Radiation dose', me.dose.toFixed(1), 'mSv so far this mission')}
+      </div></section>`;
+
+  let mission;
+  if (has) {
+    const verdicts = crew.map((m) => Crew.verdict(m)); const onTrack = verdicts.filter((x) => x.level === 0).length;
+    const items = Inventory.items(); const low = items.filter((i) => Inventory.level(i) > 0).length;
+    const frac = clamp(state.md / len, 0, 1);
+    mission = `<section class="card lobby-mission">
+        <div class="lm-h"><div><span class="mcard-k">${esc(ENVIRONMENTS[cur.env].short)}</span><h2>${esc(cur.name)}</h2></div>
+          <div class="btnrow"><button class="btn ghost sm" data-act="missiontab" data-v="missions">${icon('layers')}Switch mission</button><button class="btn primary sm" data-act="missiontab" data-v="status">Mission status${icon('next')}</button></div></div>
+        <div class="track" role="progressbar" aria-valuemin="1" aria-valuemax="${len}" aria-valuenow="${state.md}" aria-label="Mission progress"><i style="width:${frac * 100}%"></i></div>
+        <ul class="lm-facts">
+          <li>${icon('clock')}<b>MD ${state.md}</b> of ${len}</li>
+          <li>${icon('users')}<b>${onTrack}/${crew.length}</b> crew on track</li>
+          <li class="${alerts ? 'hot' : ''}">${icon('siren')}<b>${alerts}</b> active emergenc${alerts === 1 ? 'y' : 'ies'}</li>
+          <li class="${low ? 'warn' : ''}">${icon('box')}<b>${low}</b> supplies low or out</li>
+        </ul></section>`;
+  } else {
+    mission = `<section class="card lobby-mission">
+        <div class="lm-h"><div><span class="mcard-k">Guest</span><h2>No mission yet</h2><p class="muted small">You can use every section on your own. Join a mission to share your status with a crew on this device.</p></div>
+          <div class="btnrow"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></div></section>`;
+  }
+  const jump = ['personal', 'crew', 'mission', 'analysis'].map((key) => { const sec = SECTIONS.find((x) => x.v === key);
+    return `<button class="jcard" data-act="view" data-v="${key}" style="--tabc:${sec.c}"><span class="jcard-h"><span class="jcard-ic">${icon(sec.icon)}</span><span>${sec.label}</span>${icon('next', 'jcard-go')}</span><span class="jcard-s">${esc(sec.desc || '')}</span></button>`; }).join('');
+  return hero + you + `<section class="lobby-sec"><div class="lobby-h"><h2>Your mission</h2><p>A short look at the whole crew.</p></div>${mission}</section>`
+    + `<section class="lobby-sec"><div class="lobby-h"><h2>Go to</h2></div><div class="jgrid">${jump}</div></section>`;
+}
+
+/* ---------- Mission tab: "Status" and "Missions" (switch, create, join, browse) ---------- */
+function missionTabs() {
+  if (!Missions.has()) return '';
+  const on = ui.missionTab === 'missions' ? 'missions' : 'status';
+  const tabs = [['status', 'Mission status', 'bars'], ['missions', 'Missions', 'layers']];
+  return `<nav class="subnav" aria-label="Mission sections"><span class="ind" aria-hidden="true"></span>${tabs.map(([v, l, ic]) => `<button class="${on === v ? 'on' : ''}" data-act="missiontab" data-v="${v}" ${on === v ? 'aria-current="page"' : ''}>${icon(ic)}${l}</button>`).join('')}</nav>`;
+}
+function missionPage() { return ui.missionTab === 'missions' || !Missions.has() ? viewMissions() : viewMission(); }
+
+function viewMissions() {
+  const all = Missions.list(); const u = Auth.user();
+  Missions.refreshDirectory(false, () => { if (ui.view === 'mission' && !ui.modal && Auth.user()) render(); });
   const missions = all.map((m) => { const e = ENVIRONMENTS[m.env];
     return `<article class="mcard ${m.active ? 'on' : ''}" style="--m:${(MISSION_ART[m.env] || MISSION_ART.iss).c}">
       <button class="mcard-main" data-act="mission" data-code="${esc(m.code)}" aria-pressed="${m.active}">
         <span class="mcard-art">${missionArt(m.env)}${m.active ? `<span class="mcard-badge">${icon('check')}Active</span>` : ''}</span>
         <span class="mcard-b"><span class="mcard-k">${esc(e.short)}</span><b>${esc(m.name)}</b>
           <span class="mcard-facts"><span>${icon('clock')}Mission day ${m.md} of ${m.len}</span><span>${icon('zap')}${e.rad} mSv/day · ${esc(e.gravity)}</span><span>${icon('user')}${m.role === 'creator' ? 'Created by you' : 'Joined with a code'}</span></span>
-          <span class="mcard-go">${m.active ? 'Enter mission' : 'Switch to this mission'}${icon('next')}</span></span></button>
+          <span class="mcard-go">${m.active ? 'Open mission status' : 'Switch to this mission'}${icon('next')}</span></span></button>
       <footer class="mcard-foot"><button class="codechip" data-act="copycode" data-code="${esc(m.code)}" title="Copy the code to share it with your crew">${icon('copy')}<span>${esc(m.code)}</span></button>
         ${m.active ? '' : `<button class="btn quiet sm" data-act="leavemission" data-code="${esc(m.code)}">Leave</button>`}</footer></article>`; }).join('');
   const adds = `<button class="mcard add" data-act="newmission"><span class="add-ic">${icon('plus')}</span><b>Create a mission</b><small>Name it, pick where it happens and get a code to share with your crew.</small></button>
     <button class="mcard add join" data-act="joinmission"><span class="add-ic">${icon('users')}</span><b>Join with a code</b><small>Enter the code a crewmate shared to join their mission.</small></button>`;
-  const jump = [
-    ['personal', score == null ? '—' : score, score == null ? 'no readings yet' : 'your readiness', due ? `${due} measurement${due > 1 ? 's' : ''} due today` : 'Everything logged for today'],
-    ['crew', crew.length, `crew member${crew.length === 1 ? '' : 's'}`, alerts ? `${alerts} active emergenc${alerts > 1 ? 'ies' : 'y'}` : `${Inventory.items().length} items in the ship inventory`],
-    ['mission', state.md, `of ${missionLength()} days`, `Code ${esc(u.crew)}`],
-    ['analysis', help, help === 1 ? 'needs attention' : 'need attention', 'Verdicts and crew-wide patterns'],
-  ].map(([v, n, unit, sub]) => { const s = SECTIONS.find((x) => x.v === v);
-    return `<button class="jcard ${v === 'crew' && alerts ? 'hot' : ''}" data-act="view" data-v="${v}" style="--tabc:${s.c}">
-      <span class="jcard-h"><span class="jcard-ic">${icon(s.icon)}</span><span>${s.label}</span>${icon('next', 'jcard-go')}</span>
-      <span class="jcard-n"><b class="num" ${typeof n === 'number' ? `data-count="${n}"` : ''}>${n}</b><small>${unit}</small></span>
-      <span class="jcard-s">${sub}</span></button>`; }).join('');
-  const lead = none
-    ? `You are not on a mission yet. ${u.guest ? 'As a guest you can' : 'You can'} create your own mission or join one of the missions below.`
-    : `You are on <b>${esc(cur.name)}</b> · ${esc(ENVIRONMENTS[cur.env].short)}. Continue where you left off, switch mission, or start a new one.`;
-  const cta = none
-    ? `<button class="btn primary lg" data-act="newmission">${icon('plus')}Create a mission</button><button class="btn ghost lg" data-act="joinmission">${icon('users')}Join with a code</button>`
-    : `<button class="btn primary lg" data-act="view" data-v="personal">${icon('rocket')}Continue mission</button>
-          ${due ? `<button class="btn ghost lg" data-act="checkin">${icon('plus')}Start check-in<span class="btn-note">${due} due</span></button>` : ''}`;
-  return `<section class="card hero lobby-hero">
-      <div class="hero-main"><p class="hero-greet">${greeting()}${first ? ', ' + esc(first) : ''}</p>
-        <h1 class="hero-title">${SWOOSH}Mission lobby</h1>
-        <p class="lobby-lead">${lead}</p>
-        <div class="hero-cta">${cta}</div></div>
-      <div class="lobby-orb" aria-hidden="true">${missionArt(cur.env)}</div>
-    </section>
-    <section class="lobby-sec"><div class="lobby-h"><h2>Your missions</h2><p>${all.length ? `${all.length} mission${all.length === 1 ? '' : 's'} · each one keeps its own readings, crew and ship inventory.` : 'None yet — create one or join a mission from the list below.'}</p></div>
+  return pageHead('Missions', Missions.has() ? 'Switch between your missions, create a new one or join one' : `${u.guest ? 'Optional for guests: ' : ''}create your own mission or join one to work with a crew`) + missionTabs() +
+    `<section class="lobby-sec"><div class="lobby-h"><h2>Your missions</h2><p>${all.length ? `${all.length} mission${all.length === 1 ? '' : 's'} · each one keeps its own readings, crew and ship inventory.` : 'None yet — create one or join a mission from the list below.'}</p></div>
       <div class="mgrid">${missions}${adds}</div></section>
-    ${directoryHtml(all)}
-    ${none ? '' : `<section class="lobby-sec"><div class="lobby-h"><h2>Go to</h2><p>Jump straight into a section of the active mission.</p></div>
-      <div class="jgrid">${jump}</div></section>`}`;
+    ${directoryHtml(all)}`;
 }
 
 /* Every mission people have created (shared database), so anyone can find one and join it. */
@@ -550,7 +587,6 @@ function authHtml() {
           ${reg ? f('confirm', 'Confirm password', 'password', 'lock', 'autocomplete="new-password" placeholder="Confirm password"') : `<label class="remember"><input type="checkbox" name="remember" checked> Keep me signed in on this device</label>`}
           <p class="auth-err" role="alert">${esc(ui.authErr)}</p>
           <button class="btn primary big" type="submit" ${ui.busy ? 'disabled' : ''}>${reg ? 'Create account' : 'Sign In'}</button>
-          <p class="muted small center">${reg ? 'Already have an account?' : 'New crew member?'} <button type="button" class="link" data-act="authtab" data-v="${reg ? 'login' : 'register'}">${reg ? 'Sign in' : 'Create an account'}</button></p>
         </form>
         <div class="auth-or"><span>or</span></div>
         <button type="button" class="btn ghost big guest-btn" data-act="guest">${icon('user')}Continue as guest</button>
@@ -651,13 +687,13 @@ function render() {
   if (!Auth.user()) { lastPage = ''; renderAuth(); return; }
   document.body.classList.remove('signed-out');
   Engine.today(); Crew.refresh();
-  if (!Missions.has()) ui.view = 'lobby'; // no mission yet: only the lobby makes sense
+  if (Missions.locked() && !['lobby', 'mission'].includes(ui.view)) ui.view = 'lobby'; // pick a mission first (guests skip this)
   renderTop(); renderNav();
   $('#banner').innerHTML = bannerHtml();
   const page = pageKey();
   const entering = page !== lastPage; lastPage = page;
   const y = window.scrollY; const app = $('#app');
-  app.innerHTML = { lobby: viewLobby, personal: viewPersonal, crew: ui.crewTab === 'inventory' ? viewInventory : viewCrew, mission: viewMission, analysis: viewAnalysis }[ui.view]();
+  app.innerHTML = { lobby: viewLobby, personal: viewPersonal, crew: ui.crewTab === 'inventory' ? viewInventory : viewCrew, mission: missionPage, analysis: viewAnalysis }[ui.view]();
   app.classList.toggle('enter', entering);
   const subKey = ui.view; if (indPos.subFor !== subKey) { delete indPos.sub; indPos.subFor = subKey; }
   slideInd($('.subnav'), 'sub');
@@ -753,6 +789,7 @@ const actions = {
     Auth.guest(); Engine.load(); ui.view = 'lobby'; ui.sub = 'overview'; ui.sys = null; ui.crewTab = 'mates';
     render(); window.scrollTo(0, 0); Sync.run(); toast('Exploring as a guest — data stays on this device');
   },
+  missiontab(d) { navigate(() => { ui.view = 'mission'; ui.missionTab = d.v; ui.modal = null; render(); }); },
   joindir(d) {
     const m = Missions.directory().find((x) => x.code === d.code);
     try { Missions.join(d.code, m); ui.sys = null; navigate(render); toast(`You joined ${m && m.name ? m.name : 'mission ' + d.code}`); }
@@ -768,7 +805,7 @@ const actions = {
     if (!confirm('Sign out of NOVACARE?' + warn)) return;
     Auth.logout(); state = null; ui.view = 'lobby'; ui.crewTab = 'mates'; ui.sub = 'overview'; ui.auth = 'login'; ui.authErr = ''; render(); toast('Signed out'); },
   mission(d) {
-    if (Auth.user().crew === d.code) { actions.view({ v: 'personal' }); return; }
+    if (Auth.user().crew === d.code) { actions.missiontab({ v: 'status' }); return; }
     const m = Missions.list().find((x) => x.code === d.code); if (!m) return;
     navigate(() => { Missions.activate(d.code); ui.sys = null; render(); });
     toast(`Switched to ${m.name}`);
@@ -797,7 +834,7 @@ const actions = {
   invstarter() { const r = Inventory.starter(); render(); toast(`${r.added} starter items added — adjust them to match your ship`); },
   invexport() { download(`novacare-inventory-${Auth.user().crew}.csv`, Inventory.toCsv(), 'text/csv'); },
   view(d) {
-    if (d.v !== 'lobby' && Auth.user() && !Missions.has()) { toast('Create or join a mission first'); return; }
+    if (!['lobby', 'mission'].includes(d.v) && Auth.user() && Missions.locked()) { toast('Create or join a mission first'); return; }
     if (d.v === ui.view && !SUB_ALIAS[d.v]) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     navigate(() => {
       if (SUB_ALIAS[d.v]) { ui.view = 'personal'; ui.sub = SUB_ALIAS[d.v]; } else ui.view = d.v;
