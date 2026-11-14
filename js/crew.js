@@ -2,7 +2,7 @@
    Engine functions read the global `state`, so another astronaut is evaluated by swapping
    their mission data in for a moment (withState). */
 
-const DEFAULT_CREW = 'NOVA-1';
+const DEFAULT_CREW = 'NOVA-1'; // legacy default mission code (new accounts start with no mission)
 const ROLES = ['Commander', 'Pilot', 'Flight Engineer', 'Mission Specialist', 'Crew Medical Officer', 'Payload Specialist'];
 
 const Crew = (() => {
@@ -114,7 +114,7 @@ const Crew = (() => {
   function localMates() { // other accounts on this device with the same mission code
     const me = Auth.user(); let all = {};
     try { all = JSON.parse(localStorage.getItem('novacare.accounts')) || {}; } catch (e) { /* ignore */ }
-    return Object.entries(all).filter(([id, a]) => id !== me.id && (a.crew || DEFAULT_CREW) === me.crew).map(([id, a]) => {
+    return Object.entries(all).filter(([id, a]) => id !== me.id && me.crew && a.crew === me.crew).map(([id, a]) => {
       let s = null; try { s = JSON.parse(localStorage.getItem(`${STORE_KEY}:${id}`)); } catch (e) { /* ignore */ }
       return s && s.days ? summarize(s, { id, name: a.name, role: a.role }) : null;
     }).filter(Boolean);
@@ -191,7 +191,7 @@ const Crew = (() => {
   }
 
   /* ---------- emergency alerts ---------- */
-  const alertKey = () => 'novacare.alerts:' + (Auth.user() ? Auth.user().crew : DEFAULT_CREW);
+  const alertKey = () => 'novacare.alerts:' + (Auth.user() && Auth.user().crew ? Auth.user().crew : '-');
   const readAlerts = () => { try { return JSON.parse(localStorage.getItem(alertKey())) || []; } catch (e) { return []; } };
   const writeAlerts = (a) => { try { localStorage.setItem(alertKey(), JSON.stringify(a.slice(-100))); } catch (e) { /* ignore */ } };
   const uuid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID()

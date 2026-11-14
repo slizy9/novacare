@@ -14,6 +14,7 @@
 const Auth = (() => {
   const USERS_KEY = 'novacare.accounts';   // device copy of accounts that signed in here
   const SESSION_KEY = 'novacare.session';
+  const GUEST_ID = 'guest';                 // device-only account used by "Continue as guest"
   const TIMEOUT = 10000;                   // a request slower than this counts as "no signal"
   const cfg = typeof NOVACARE_CONFIG !== 'undefined' ? NOVACARE_CONFIG : {};
   const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && !/YOUR-/.test(cfg.SUPABASE_URL + cfg.SUPABASE_ANON_KEY));
@@ -55,7 +56,8 @@ const Auth = (() => {
   }
   async function remember(email, password, name, uid, extra = {}) {
     const all = accounts(); const s = salt(); const old = all[email] || {};
-    all[email] = { ...old, name, uid: uid || old.uid || null, crew: extra.crew || old.crew || DEFAULT_CREW, role: extra.role || old.role || ROLES[2],
+    const crew = extra.crew !== undefined && extra.crew !== null ? normCrew(extra.crew) : (old.crew || '');
+    all[email] = { ...old, name, uid: uid || old.uid || null, crew, role: extra.role || old.role || ROLES[2],
       salt: s, hash: await hash(password, s), seen: new Date().toISOString() };
     write(localStorage, USERS_KEY, all);
   }
@@ -67,14 +69,14 @@ const Auth = (() => {
   /* ---------- session ---------- */
   function startSession(email, keep, offline) {
     const u = accounts()[email];
-    current = { id: email, name: u.name, uid: u.uid, crew: u.crew || DEFAULT_CREW, role: u.role || ROLES[2], offline: !!offline };
+    current = { id: email, name: u.name, uid: u.uid, crew: u.crew || '', role: u.role || ROLES[2], offline: !!offline, guest: !!u.guest };
     try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
     write(keep ? localStorage : sessionStorage, SESSION_KEY, { id: email });
   }
   function restore() {
     const sess = read(sessionStorage, SESSION_KEY, null) || read(localStorage, SESSION_KEY, null);
     const u = sess && accounts()[sess.id];
-    current = u ? { id: sess.id, name: u.name, uid: u.uid, crew: u.crew || DEFAULT_CREW, role: u.role || ROLES[2], offline: !!sb } : null;
+    current = u ? { id: sess.id, name: u.name, uid: u.uid, crew: u.crew || '', role: u.role || ROLES[2], offline: !!sb && !u.guest, guest: !!u.guest } : null;
     return current;
   }
 
@@ -84,10 +86,18 @@ const Auth = (() => {
     if (!password) throw new Error('Enter your password.');
   }
 
-  const normCrew = (c) => String(c || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '') || DEFAULT_CREW;
+  // Mission code; empty means "not on a mission yet" (new accounts start in the lobby).
+  const normCrew = (c) => String(c || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
 
-  async function register({ name, email, password, confirm, crew, role }) {
-    email = norm(email); crew = normCrew(crew); role = ROLES.includes(role) ? role : ROLES[2];
+  /** Try the app without an account. Guest data stays on this device and never syncs. */
+  function guest() {
+    const all = accounts();
+    if (!all[GUEST_ID]) { all[GUEST_ID] = { name: 'Guest', guest: true, uid: null, crew: '', role: 'Guest', seen: new Date().toISOString() }; write(localStorage, USERS_KEY, all); }
+    startSession(GUEST_ID, true, false);
+  }
+
+  async function register({ name, email, password, confirm, role }) {
+    email = norm(email); const crew = ''; role = ROLES.includes(role) ? role : ROLES[2];
     if (!name || name.trim().length < 2) throw new Error('Enter your full name.');
     validate({ email, password });
     if (password.length < 6) throw new Error('Password must be at least 6 characters.');
@@ -146,7 +156,7 @@ const Auth = (() => {
   async function logout() {
     current = null;
     try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
-    if (sb) { try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { /* ignore */ } }
+    if (sb) { try { await sb.auth.signOut({ scope: 'local' }); } catch (e) { /* ignore */ } } // also fine for a guest
   }
 
   /** Throws Offline unless the database answers. */
@@ -181,16 +191,18 @@ const Auth = (() => {
       The role is chosen once at sign-up and cannot be changed afterwards. */
   function updateProfile({ crew, name }) {
     const all = accounts(); const u = all[current.id]; if (!u) return;
-    if (crew) u.crew = current.crew = normCrew(crew);
+    if (crew !== undefined) u.crew = current.crew = normCrew(crew);
     if (name) u.name = current.name = name;
-    u.profileDirty = !!sb; write(localStorage, USERS_KEY, all);
+    u.profileDirty = !!sb && !u.guest; write(localStorage, USERS_KEY, all);
   }
   const account = () => (current ? accounts()[current.id] : null);
   function clearDirty() { const all = accounts(); if (all[current.id]) { delete all[current.id].profileDirty; write(localStorage, USERS_KEY, all); } }
 
   return {
-    user: () => current, updateProfile, account, clearDirty, restore, register, login, logout, reconnect, cloudSession, isNetErr,
-    client: () => sb, cloud: () => !!sb, hasUsers: () => Object.keys(accounts()).length > 0,
+    user: () => current, updateProfile, account, clearDirty, restore, register, login, logout, reconnect, cloudSession, isNetErr, guest,
+    // cloud(): this session syncs with the database. Guests never do (their data stays on the device).
+    client: () => sb, cloud: () => !!sb && !(current && current.guest), configured: () => !!sb,
+    hasUsers: () => Object.keys(accounts()).some((k) => k !== GUEST_ID),
   };
 })();
 
@@ -256,14 +268,16 @@ const Sync = (() => {
   async function crewSync(sb, uid) {
     const u = Auth.user(); const acc = Auth.account() || {};
     try {
+      await membershipSync(sb, uid, u);
       if (acc.profileDirty) {
-        const r = await sb.from('profiles').update({ crew_code: u.crew, name: u.name }).eq('id', uid);
+        const r = await sb.from('profiles').update({ crew_code: u.crew || null, name: u.name }).eq('id', uid);
         if (r.error) throw r.error;
         try { await sb.auth.updateUser({ data: { crew: u.crew, role: u.role, name: u.name } }); } catch (e) { /* metadata is a convenience copy */ }
         Auth.clearDirty();
       }
+      if (!u.crew) { localStorage.setItem('novacare.crew:' + u.id, '[]'); return; } // not on a mission yet: nothing to share
       const me = Crew.summarize(state, { id: u.id, name: state.name || u.name, role: u.role });
-      let r = await sb.from('crew_status').upsert({ user_id: uid, crew_code: u.crew, name: me.name, role: u.role, summary: me, updated_at: new Date().toISOString() });
+      let r = await sb.from('crew_status').upsert({ user_id: uid, crew_code: u.crew, name: me.name, role: u.role, summary: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id,crew_code' });
       if (r.error) throw r.error;
       const pending = Crew.alerts().filter((a) => a.pending);
       for (const a of pending) {
@@ -288,7 +302,32 @@ const Sync = (() => {
       if (Auth.isNetErr(e)) throw e;
       console.warn('NOVACARE crew sync (run supabase/setup.sql to enable crew sharing):', e.message || e);
     }
-    await inventorySync(sb, u);
+    if (u.crew) await inventorySync(sb, u);
+  }
+
+  /* Missions this person is on: membership rows (so they only appear in those missions),
+     their status removed from missions they left, and the missions they created published
+     to the shared mission directory. */
+  async function membershipSync(sb, uid, u) {
+    if (typeof Missions === 'undefined') return;
+    const mine = Missions.list();
+    const codes = mine.map((m) => m.code);
+    let r;
+    if (codes.length) {
+      r = await sb.from('mission_members').upsert(codes.map((code) => ({ code, user_id: uid })), { onConflict: 'code,user_id', ignoreDuplicates: true });
+      if (r.error) throw r.error;
+    }
+    const list = '(' + codes.map((c) => '"' + c + '"').join(',') + ')';
+    r = codes.length ? await sb.from('mission_members').delete().eq('user_id', uid).not('code', 'in', list) : await sb.from('mission_members').delete().eq('user_id', uid);
+    if (r.error) throw r.error;
+    r = codes.length ? await sb.from('crew_status').delete().eq('user_id', uid).not('crew_code', 'in', list) : await sb.from('crew_status').delete().eq('user_id', uid);
+    if (r.error) throw r.error;
+    const made = mine.filter((m) => m.role === 'creator');
+    if (made.length) {
+      r = await sb.from('mission_directory').upsert(made.map((m) => ({ code: m.code, name: m.name, env: m.env, mission_days: m.len, created_by: uid, creator_name: state.name || u.name })), { onConflict: 'code' });
+      if (r.error) throw r.error;
+    }
+    Missions.refreshDirectory(true, () => listeners.forEach((f) => f(status, 'crew')));
   }
 
   /* ship inventory: my changes up, the crew's list down. Separate so a project without the table still syncs the rest. */

@@ -853,3 +853,11 @@ body.signed-out main { max-width: none; padding: 0; display: block; }
 .osdr-id { flex: none; font-size: 11.5px; font-weight: 700; color: var(--brand-ink); background: var(--brand-soft); border-radius: 6px; padding: 1px 6px; }
 .osdr-meta { display: flex; flex-wrap: wrap; gap: 5px; }
 .osdr-list p { margin: 0; }
+
+/* guest sign-in and the shared mission list */
+.auth-or { display: flex; align-items: center; gap: 12px; margin: 14px 0 10px; color: var(--faint); font-size: 12.5px; }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.guest-btn { width: 100%; justify-content: center; }
+.nav-i.locked { opacity: 0.45; }
+.mcard.dir .mcard-main { cursor: default; }
+.codechip.static { cursor: default; }

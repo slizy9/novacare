@@ -13,7 +13,7 @@ const Missions = (() => {
   function ensure() {
     if (!Array.isArray(state.missions)) state.missions = [];
     if (!state.archive || typeof state.archive !== 'object') state.archive = {};
-    if (!state.missions.some((m) => m.code === code())) state.missions.unshift({ code: code(), name: state.missionName || '', role: 'member', at: new Date().toISOString() });
+    if (code() && !state.missions.some((m) => m.code === code())) state.missions.unshift({ code: code(), name: state.missionName || '', role: 'member', at: new Date().toISOString() });
   }
   /** Every mission of this person, with the facts a card needs. */
   function list() {
@@ -23,12 +23,14 @@ const Missions = (() => {
       return { ...m, active, name: m.name || `Mission ${m.code}`, env: ENVIRONMENTS[d.env] ? d.env : 'iss', md: d.md || 1, len: d.missionDays || 180 };
     });
   }
-  const current = () => list().find((m) => m.active);
+  /** The open mission, or a placeholder while the person has not created or joined one. */
+  const current = () => list().find((m) => m.active) || { code: '', name: 'No mission yet', env: ENVIRONMENTS[state.env] ? state.env : 'iss', md: state.md || 1, len: state.missionDays || 180, none: true };
+  const has = () => !!code();
 
   function activate(c, init) {
     ensure(); if (c === code()) return;
     const park = {}; FIELDS.forEach((f) => { if (state[f] !== undefined) park[f] = state[f]; });
-    state.archive[code()] = park;
+    if (code()) state.archive[code()] = park; // with no mission open there is nothing to park
     const next = state.archive[c] || init || blank();
     FIELDS.forEach((f) => { delete state[f]; }); Object.assign(state, next); delete state.archive[c];
     Auth.updateProfile({ crew: c });
@@ -46,21 +48,39 @@ const Missions = (() => {
     activate(c, blank(ENVIRONMENTS[env] ? env : 'iss', clamp(Math.round(+len) || 180, 7, 1200), name));
     return c;
   }
-  /** Join a mission with the code a crewmate shared. Returns { code, existed }. */
-  function join(raw) {
+  /** Join a mission with the code a crewmate shared, or from the mission directory. Returns { code, existed }. */
+  function join(raw, info) {
     ensure(); const c = norm(raw);
     if (c.length < 3) throw new Error('Enter the mission code your crewmate shared (at least 3 characters).');
+    const d = info || directory().find((x) => x.code === c) || {};
     const existed = state.missions.some((m) => m.code === c);
-    if (!existed) state.missions.push({ code: c, name: '', role: 'member', at: new Date().toISOString() });
-    activate(c, blank());
+    if (!existed) state.missions.push({ code: c, name: d.name || '', role: 'member', at: new Date().toISOString() });
+    activate(c, blank(d.env, d.mission_days, d.name));
     return { code: c, existed };
+  }
+
+  /* ---------- mission directory: every mission people have created (shared database) ---------- */
+  const DIR_KEY = 'novacare.directory';
+  let dirAt = 0, dirBusy = false;
+  function directory() { try { const a = JSON.parse(localStorage.getItem(DIR_KEY)); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  /** Fetch the directory (at most every 20 s unless forced). Calls onChange when the list changed. */
+  async function refreshDirectory(force, onChange) {
+    const sb = Auth.client(); if (!sb || dirBusy || (!force && Date.now() - dirAt < 20000)) return;
+    dirBusy = true; dirAt = Date.now();
+    try {
+      const r = await sb.from('mission_directory').select('code, name, env, mission_days, creator_name, created_at').order('created_at', { ascending: false }).limit(200);
+      if (r.error) throw r.error;
+      const next = JSON.stringify(r.data || []);
+      if (next !== localStorage.getItem(DIR_KEY)) { localStorage.setItem(DIR_KEY, next); if (onChange) onChange(); }
+    } catch (e) { if (!Auth.isNetErr(e)) console.warn('NOVACARE mission directory (run supabase/setup.sql):', e.message || e); }
+    finally { dirBusy = false; }
   }
   function rename(name) { ensure(); const m = state.missions.find((x) => x.code === code()); name = String(name || '').trim().slice(0, 40); if (m) m.name = name; state.missionName = name; Engine.save(); }
   function leave(c) {
     ensure(); if (c === code()) return false;
     state.missions = state.missions.filter((m) => m.code !== c); delete state.archive[c]; Engine.save(); return true;
   }
-  return { list, current, activate, create, join, rename, leave, norm };
+  return { list, current, has, activate, create, join, rename, leave, norm, directory, refreshDirectory };
 })();
 
 /* ---------- ship inventory ----------
@@ -81,7 +101,7 @@ const INV_STARTER = [
 ];
 
 const Inventory = (() => {
-  const key = () => 'novacare.inv:' + Auth.user().crew;
+  const key = () => 'novacare.inv:' + (Auth.user().crew || '-');
   const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : 'i-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
   function all() { try { const a = JSON.parse(localStorage.getItem(key())); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
   function write(a) { try { localStorage.setItem(key(), JSON.stringify(a)); } catch (e) { /* storage full or unavailable */ } }

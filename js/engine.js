@@ -64,7 +64,7 @@ const Engine = (() => {
       const raw = localStorage.getItem(storeKey());
       if (raw) { const s = JSON.parse(raw); if (s && s.v === 1 && s.days) { state = s; return; } }
     } catch (e) { /* storage unavailable — run in memory */ }
-    state = demo();
+    state = fresh(); // a new account starts with no readings and no mission (the demo is in Settings)
   }
   // silent = written by the sync itself (cloud copy), so it is not queued for upload again
   function save(silent) {

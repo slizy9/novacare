@@ -145,15 +145,16 @@ function renderTop() {
       <button class="chip hide-s" data-act="settings" title="Environment and mission settings">${icon('orbit')}${env.short}</button>
       ${syncChip()}
       <button class="chip icon-only" data-act="theme" title="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode" aria-label="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
-      <div class="md" title="Mission day">MD <b class="num">${state.md}</b><button data-act="nextday" title="Advance to the next mission day (demo control)" aria-label="Advance to next mission day">${icon('next')}</button></div>
-      <div class="user-chip" title="Signed in as ${esc(u.id)}"><span class="avatar" aria-hidden="true">${esc(initials(state.name || u.name))}</span><span class="uname">${esc(state.name || u.name)}</span><button data-act="logout" title="Sign out" aria-label="Sign out">${icon('logout')}</button></div>
+      ${Missions.has() ? `<div class="md" title="Mission day">MD <b class="num">${state.md}</b><button data-act="nextday" title="Advance to the next mission day (demo control)" aria-label="Advance to next mission day">${icon('next')}</button></div>` : ''}
+      <div class="user-chip" title="${u.guest ? 'Guest — data stays on this device' : `Signed in as ${esc(u.id)}`}"><span class="avatar" aria-hidden="true">${esc(initials(state.name || u.name))}</span><span class="uname">${esc(state.name || u.name)}</span><button data-act="logout" title="Sign out" aria-label="Sign out">${icon('logout')}</button></div>
     </div>`;
 }
 
 function renderNav() {
   const alerts = Crew.active().length; const cur = SECTIONS.find((t) => t.v === ui.view) || SECTIONS[0];
   document.documentElement.style.setProperty('--tab', cur.c);
-  $('#nav').innerHTML = `<ul><li class="ind" aria-hidden="true"></li>${SECTIONS.map((t, i) => `<li><button class="nav-i ${ui.view === t.v ? 'on' : ''}" data-act="view" data-v="${t.v}" title="${t.label} (press ${i + 1})" ${ui.view === t.v ? 'aria-current="page"' : ''}>
+  const none = !Missions.has();
+  $('#nav').innerHTML = `<ul><li class="ind" aria-hidden="true"></li>${SECTIONS.map((t, i) => `<li><button class="nav-i ${ui.view === t.v ? 'on' : ''} ${none && t.v !== 'lobby' ? 'locked' : ''}" data-act="view" data-v="${t.v}" title="${none && t.v !== 'lobby' ? 'Create or join a mission first' : `${t.label} (press ${i + 1})`}" ${ui.view === t.v ? 'aria-current="page"' : ''} ${none && t.v !== 'lobby' ? 'aria-disabled="true"' : ''}>
       <span class="nav-ic">${icon(t.icon)}</span><span>${t.label}</span>${t.v === 'crew' && alerts ? `<em class="nav-badge" aria-label="${alerts} active emergencies">${alerts}</em>` : ''}</button></li>`).join('')}</ul>
     <button class="nav-set" data-act="settings" title="Mission settings" aria-label="Mission settings">${icon('settings')}</button>`;
   slideInd($('#nav ul'), 'nav');
@@ -162,7 +163,9 @@ function renderNav() {
 /* ---------- mission lobby ---------- */
 function viewLobby() {
   const u = Auth.user(); const score = Engine.readiness(); const due = Engine.dueList().length;
-  const crew = Crew.members(); const alerts = Crew.active().length; const all = Missions.list(); const cur = all.find((m) => m.active);
+  const crew = Crew.members(); const alerts = Crew.active().length; const all = Missions.list(); const cur = Missions.current();
+  const none = !Missions.has();
+  Missions.refreshDirectory(false, () => { if (ui.view === 'lobby' && !ui.modal && Auth.user()) render(); });
   const help = crew.filter((m) => Crew.verdict(m).level >= 2).length;
   const first = (state.name || u.name || '').split(' ')[0];
   const missions = all.map((m) => { const e = ENVIRONMENTS[m.env];
@@ -186,18 +189,41 @@ function viewLobby() {
       <span class="jcard-h"><span class="jcard-ic">${icon(s.icon)}</span><span>${s.label}</span>${icon('next', 'jcard-go')}</span>
       <span class="jcard-n"><b class="num" ${typeof n === 'number' ? `data-count="${n}"` : ''}>${n}</b><small>${unit}</small></span>
       <span class="jcard-s">${sub}</span></button>`; }).join('');
+  const lead = none
+    ? `You are not on a mission yet. ${u.guest ? 'As a guest you can' : 'You can'} create your own mission or join one of the missions below.`
+    : `You are on <b>${esc(cur.name)}</b> · ${esc(ENVIRONMENTS[cur.env].short)}. Continue where you left off, switch mission, or start a new one.`;
+  const cta = none
+    ? `<button class="btn primary lg" data-act="newmission">${icon('plus')}Create a mission</button><button class="btn ghost lg" data-act="joinmission">${icon('users')}Join with a code</button>`
+    : `<button class="btn primary lg" data-act="view" data-v="personal">${icon('rocket')}Continue mission</button>
+          ${due ? `<button class="btn ghost lg" data-act="checkin">${icon('plus')}Start check-in<span class="btn-note">${due} due</span></button>` : ''}`;
   return `<section class="card hero lobby-hero">
       <div class="hero-main"><p class="hero-greet">${greeting()}${first ? ', ' + esc(first) : ''}</p>
         <h1 class="hero-title">${SWOOSH}Mission lobby</h1>
-        <p class="lobby-lead">You are on <b>${esc(cur.name)}</b> · ${esc(ENVIRONMENTS[cur.env].short)}. Continue where you left off, switch mission, or start a new one.</p>
-        <div class="hero-cta"><button class="btn primary lg" data-act="view" data-v="personal">${icon('rocket')}Continue mission</button>
-          ${due ? `<button class="btn ghost lg" data-act="checkin">${icon('plus')}Start check-in<span class="btn-note">${due} due</span></button>` : ''}</div></div>
-      <div class="lobby-orb" aria-hidden="true">${missionArt(state.env)}</div>
+        <p class="lobby-lead">${lead}</p>
+        <div class="hero-cta">${cta}</div></div>
+      <div class="lobby-orb" aria-hidden="true">${missionArt(cur.env)}</div>
     </section>
-    <section class="lobby-sec"><div class="lobby-h"><h2>Your missions</h2><p>${all.length} mission${all.length === 1 ? '' : 's'} · each one keeps its own readings, crew and ship inventory.</p></div>
+    <section class="lobby-sec"><div class="lobby-h"><h2>Your missions</h2><p>${all.length ? `${all.length} mission${all.length === 1 ? '' : 's'} · each one keeps its own readings, crew and ship inventory.` : 'None yet — create one or join a mission from the list below.'}</p></div>
       <div class="mgrid">${missions}${adds}</div></section>
-    <section class="lobby-sec"><div class="lobby-h"><h2>Go to</h2><p>Jump straight into a section of the active mission.</p></div>
-      <div class="jgrid">${jump}</div></section>`;
+    ${directoryHtml(all)}
+    ${none ? '' : `<section class="lobby-sec"><div class="lobby-h"><h2>Go to</h2><p>Jump straight into a section of the active mission.</p></div>
+      <div class="jgrid">${jump}</div></section>`}`;
+}
+
+/* Every mission people have created (shared database), so anyone can find one and join it. */
+function directoryHtml(mine) {
+  if (!Auth.configured()) return '';
+  const have = new Set(mine.map((m) => m.code));
+  const list = Missions.directory().filter((m) => !have.has(m.code));
+  const cards = list.map((m) => { const env = ENVIRONMENTS[m.env] ? m.env : 'iss'; const e = ENVIRONMENTS[env];
+    return `<article class="mcard dir" style="--m:${(MISSION_ART[env] || MISSION_ART.iss).c}">
+      <div class="mcard-main"><span class="mcard-art">${missionArt(env)}</span>
+        <span class="mcard-b"><span class="mcard-k">${esc(e.short)}</span><b>${esc(m.name)}</b>
+          <span class="mcard-facts"><span>${icon('clock')}${m.mission_days} days planned</span><span>${icon('zap')}${e.rad} mSv/day · ${esc(e.gravity)}</span><span>${icon('user')}Created by ${esc(m.creator_name || 'a crew member')}</span></span></span></div>
+      <footer class="mcard-foot"><span class="codechip static">${icon('rocket')}<span>${esc(m.code)}</span></span>
+        <button class="btn primary sm" data-act="joindir" data-code="${esc(m.code)}">${icon('users')}Join</button></footer></article>`; }).join('');
+  return `<section class="lobby-sec"><div class="lobby-h"><h2>All missions</h2><p>${list.length ? `Missions created by people on NovaCare. Join one to see its crew and ship inventory.${Auth.user().guest ? ' As a guest, a mission you join stays on this device.' : ''}` : 'No other missions yet. Create one and it will show up here for everyone.'}</p></div>
+      ${list.length ? `<div class="mgrid">${cards}</div>` : ''}</section>`;
 }
 
 /* Personal overview: who you are, key vitals, health shortcuts and the body scan. */
@@ -449,7 +475,7 @@ function settingsHtml() {
     <header><div><h2>Mission profile</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
       <div class="field"><label for="name">Crew member name</label><input id="name" class="text" type="text" maxlength="40" value="${esc(state.name)}" placeholder="Your name"></div>
-      <div class="field"><label>Mission</label>
+      ${Missions.has() ? `<div class="field"><label>Mission</label>
         <div class="field-row">
           <div class="field"><label for="set-mname" class="sm">Mission name</label><input id="set-mname" class="text" type="text" maxlength="40" value="${esc(Missions.current().name)}"></div>
           <div class="field"><label class="sm">Mission code</label><button class="codechip lg" data-act="copycode" data-code="${esc(Auth.user().crew)}" title="Copy the code">${icon('copy')}<span>${esc(Auth.user().crew)}</span></button></div>
@@ -457,7 +483,7 @@ function settingsHtml() {
           <div class="field"><label for="set-len" class="sm">Planned length (days)</label><input id="set-len" class="text num" type="number" min="7" max="1200" value="${missionLength()}"></div>
         </div>
         <label class="remember"><input type="checkbox" id="set-sim" ${state.showSim !== false ? 'checked' : ''}> Show the simulated demo crew (3 synthetic astronauts, labelled “Simulated”)</label>
-        <p class="muted small">Crewmates who join with the same mission code share their status with each other. Create, join or switch missions from the Lobby.</p></div>
+        <p class="muted small">Crewmates who join with the same mission code share their status with each other. Create, join or switch missions from the Lobby.</p></div>` : `<div class="field"><label>Mission</label><p class="muted small">You are not on a mission yet. Create or join one from the Lobby.</p><div class="field-row"><div class="field"><label for="set-role" class="sm">Your role</label><input id="set-role" class="text" type="text" value="${esc(Auth.user().role)}" readonly aria-readonly="true" title="Chosen when you created your account — it cannot be changed"></div></div></div>`}
       <div class="field"><label>Where are you?</label>
         <div class="envs">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button class="${state.env === k ? 'on' : ''}" data-act="env" data-id="${k}"><b>${e.name}</b><small>${e.gravity} · ${e.rad} mSv/day · ${e.comm}</small></button>`).join('')}</div>
         <p class="muted small">The environment changes radiation thresholds, the exercise prescription and how NOVACARE tells you to escalate.</p></div>
@@ -518,15 +544,17 @@ function authHtml() {
         <form id="auth-form" class="fields" novalidate>
           ${reg ? f('name', 'Full name', 'text', 'user', 'autocomplete="name" maxlength="40" placeholder="Full name"') : ''}
           ${f('email', 'Email', 'email', reg ? 'mail' : 'user', `autocomplete="username" maxlength="80" autocapitalize="off" spellcheck="false" placeholder="${reg ? 'Email' : 'User (email)'}"`)}
-          ${reg ? `${f('crew', 'Mission code', 'text', 'rocket', 'maxlength="20" autocapitalize="characters" spellcheck="false" placeholder="Mission code" value="' + DEFAULT_CREW + '"')}
-            <div class="field"><label for="au-role" class="vh">Role</label><div class="inp">${icon('users')}<select id="au-role" name="role" aria-label="Role">${ROLES.map((r, i) => `<option ${i === 2 ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div>
-            <p class="hint">Use a crewmate’s mission code to join them, or keep this one. You can create or join more missions later. Pick your role carefully: it is fixed once your account is created.</p>` : ''}
+          ${reg ? `<div class="field"><label for="au-role" class="vh">Role</label><div class="inp">${icon('users')}<select id="au-role" name="role" aria-label="Role">${ROLES.map((r, i) => `<option ${i === 2 ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div>
+            <p class="hint">Pick your role carefully: it is fixed once your account is created. After signing up you create a mission or join one from the lobby.</p>` : ''}
           ${f('password', 'Password', 'password', 'lock', `autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="${reg ? 'Password (at least 6 characters)' : 'Password'}"`)}
           ${reg ? f('confirm', 'Confirm password', 'password', 'lock', 'autocomplete="new-password" placeholder="Confirm password"') : `<label class="remember"><input type="checkbox" name="remember" checked> Keep me signed in on this device</label>`}
           <p class="auth-err" role="alert">${esc(ui.authErr)}</p>
           <button class="btn primary big" type="submit" ${ui.busy ? 'disabled' : ''}>${reg ? 'Create account' : 'Sign In'}</button>
           <p class="muted small center">${reg ? 'Already have an account?' : 'New crew member?'} <button type="button" class="link" data-act="authtab" data-v="${reg ? 'login' : 'register'}">${reg ? 'Sign in' : 'Create an account'}</button></p>
         </form>
+        <div class="auth-or"><span>or</span></div>
+        <button type="button" class="btn ghost big guest-btn" data-act="guest">${icon('user')}Continue as guest</button>
+        <p class="muted small center">Try NovaCare without an account. Guest data stays on this device and is not shared with a crew.</p>
         ${connNote(reg)}
       </div>
     </div></section>`;
@@ -568,7 +596,7 @@ async function submitAuth(form) {
     Sync.run();
   } catch (e) {
     ui.busy = false; ui.authErr = e.message;
-    const keep = Object.fromEntries(['name', 'email', 'crew'].map((k) => [k, d[k] || '']));
+    const keep = Object.fromEntries(['name', 'email'].map((k) => [k, d[k] || '']));
     renderAuth();
     Object.entries(keep).forEach(([k, v]) => { const i = $('#au-' + k); if (i) i.value = v; });
     const pw = $('#au-password'); if (pw && keep.email) pw.focus();
@@ -623,6 +651,7 @@ function render() {
   if (!Auth.user()) { lastPage = ''; renderAuth(); return; }
   document.body.classList.remove('signed-out');
   Engine.today(); Crew.refresh();
+  if (!Missions.has()) ui.view = 'lobby'; // no mission yet: only the lobby makes sense
   renderTop(); renderNav();
   $('#banner').innerHTML = bannerHtml();
   const page = pageKey();
@@ -720,13 +749,22 @@ const actions = {
   togglesim() { state.showSim = true; Engine.save(); Crew.refresh(true); render(); },
   mreport() { download(`novacare-mission-${Auth.user().crew}-MD${state.md}.txt`, missionReport(), 'text/plain'); },
   authtab(d) { ui.auth = d.v; ui.authErr = ''; renderAuth(); },
+  guest() {
+    Auth.guest(); Engine.load(); ui.view = 'lobby'; ui.sub = 'overview'; ui.sys = null; ui.crewTab = 'mates';
+    render(); window.scrollTo(0, 0); Sync.run(); toast('Exploring as a guest — data stays on this device');
+  },
+  joindir(d) {
+    const m = Missions.directory().find((x) => x.code === d.code);
+    try { Missions.join(d.code, m); ui.sys = null; navigate(render); toast(`You joined ${m && m.name ? m.name : 'mission ' + d.code}`); }
+    catch (e) { toast(e.message); }
+  },
   syncinfo() {
     const st = Sync.status();
     if (st === 'relink') { ui.modal = { type: 'reauth' }; renderModal(); return; }
     toast(SYNC_UI[st][3]); if (st !== 'local') Sync.run();
   },
   logout() {
-    const warn = Sync.pending() && Auth.cloud() ? '\n\nSome readings have not uploaded yet. They stay saved on this device and will upload the next time you sign in with signal.' : '';
+    const warn = Auth.user().guest ? '\n\nGuest data stays on this device: choose “Continue as guest” again to pick up where you left off.' : Sync.pending() && Auth.cloud() ? '\n\nSome readings have not uploaded yet. They stay saved on this device and will upload the next time you sign in with signal.' : '';
     if (!confirm('Sign out of NOVACARE?' + warn)) return;
     Auth.logout(); state = null; ui.view = 'lobby'; ui.crewTab = 'mates'; ui.sub = 'overview'; ui.auth = 'login'; ui.authErr = ''; render(); toast('Signed out'); },
   mission(d) {
@@ -759,6 +797,7 @@ const actions = {
   invstarter() { const r = Inventory.starter(); render(); toast(`${r.added} starter items added — adjust them to match your ship`); },
   invexport() { download(`novacare-inventory-${Auth.user().crew}.csv`, Inventory.toCsv(), 'text/csv'); },
   view(d) {
+    if (d.v !== 'lobby' && Auth.user() && !Missions.has()) { toast('Create or join a mission first'); return; }
     if (d.v === ui.view && !SUB_ALIAS[d.v]) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     navigate(() => {
       if (SUB_ALIAS[d.v]) { ui.view = 'personal'; ui.sub = SUB_ALIAS[d.v]; } else ui.view = d.v;
