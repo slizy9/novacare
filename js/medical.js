@@ -31,10 +31,10 @@ const ANTICOAG = /warfarin|apixaban|rivaroxaban|dabigatran|heparin|enoxaparin|cl
 
 /* Ready-made profiles: the simulated crew and the demo astronaut come with theirs. */
 const PRESET_PROFILES = {
-  'sim:tanaka': { blood: 'A+', allergies: ['penicillin'], other: '', meds: [], conditions: [], notes: 'Wears contact lenses.' },
-  'sim:okafor': { blood: 'O+', allergies: ['nsaid'], other: '', meds: ['Lisinopril 10 mg daily (blood pressure)'], conditions: ['Mild hypertension, controlled'], notes: 'Crew Medical Officer — carries the medical checklist.' },
-  'sim:fischer': { blood: 'B−', allergies: ['latex', 'peanut'], other: '', meds: [], conditions: ['Childhood asthma, no attacks in 10 years'], notes: 'Use nitrile gloves.' },
-  demo: { blood: 'O−', allergies: ['sulfa'], other: 'Bee stings', meds: ['Vitamin D 1000 IU daily'], conditions: [], notes: '' },
+  'sim:tanaka': { blood: 'A+', allergies: ['penicillin'], other: '', meds: [], conditions: [], notes: 'Wears contact lenses.', baseline: { hr: 54, sys: 112, dia: 70, mass: 61 } },
+  'sim:okafor': { blood: 'O+', allergies: ['nsaid'], other: '', meds: ['Lisinopril 10 mg daily (blood pressure)'], conditions: ['Mild hypertension, controlled'], notes: 'Crew Medical Officer — carries the medical checklist.', baseline: { hr: 60, sys: 118, dia: 76, mass: 82 } },
+  'sim:fischer': { blood: 'B−', allergies: ['latex', 'peanut'], other: '', meds: [], conditions: ['Childhood asthma, no attacks in 10 years'], notes: 'Use nitrile gloves.', baseline: { hr: 58, sys: 108, dia: 68, mass: 66 } },
+  demo: { blood: 'O−', allergies: ['sulfa'], other: 'Bee stings', meds: ['Vitamin D 1000 IU daily'], conditions: [], notes: '', baseline: { hr: 57, sys: 112, dia: 72, mass: 74 } },
 };
 
 const Medical = (() => {
@@ -45,6 +45,7 @@ const Medical = (() => {
     meds: Array.isArray(p && p.meds) ? p.meds.map((x) => String(x).trim()).filter(Boolean).slice(0, 20) : [],
     conditions: Array.isArray(p && p.conditions) ? p.conditions.map((x) => String(x).trim()).filter(Boolean).slice(0, 20) : [],
     notes: String((p && p.notes) || '').slice(0, 300),
+    baseline: ['hr', 'sys', 'dia', 'mass'].reduce((o, k) => { const v = p && p.baseline ? parseFloat(p.baseline[k]) : NaN; if (Number.isFinite(v) && v > 0) o[k] = v; return o; }, {}),
     updatedAt: (p && p.updatedAt) || null,
   });
   /** The profile stored with a person's mission data (or a preset for simulated crew). */
@@ -249,6 +250,8 @@ const Assistant = (() => {
         parts.push(`<ul>${adv.actions.slice(0, 3).map((a) => `<li>${esc(a)}</li>`).join('')}</ul>`); say.push(adv.actions[0]);
       }
     });
+    const bl = person.med && person.med.baseline ? person.med.baseline : {};
+    ids.forEach((id) => { const st = person.me ? Engine.status(id) : person.latest[id] || {}; if (bl[id] && st.v != null) { const d = +(st.v - bl[id]).toFixed(1); parts.push(`<p class="muted small">Pre-flight baseline ${IND[id].short}: ${bl[id]} ${IND[id].unit} (${d >= 0 ? '+' : ''}${d} now).</p>`); } });
     if (person.me && ids.includes('rad')) { const d = Engine.cumulativeDose(); parts.push(`<p>Mission dose so far: <b>${d.toFixed(1)} mSv</b> — ${Math.round((d / CAREER_DOSE_LIMIT) * 100)}% of the ${CAREER_DOSE_LIMIT} mSv career limit.</p>`); }
     if (person.me && ids.length === 1) parts.push(`<p class="muted small">${esc(IND[ids[0]].why)}</p>`);
     const ev = (EVIDENCE[ids[0]] || [])[0]; const os = typeof OSDR !== 'undefined' && OSDR.indicators && OSDR.indicators[ids[0]];
@@ -256,20 +259,42 @@ const Assistant = (() => {
     return { html: parts.join(''), say: say.join(' '), act: person.me ? { label: `Open ${IND[ids[0]].short} trend`, act: 'detail', id: ids[0] } : null };
   }
 
-  /** "Can I take ibuprofen?" — checks allergies, blood thinners and what is on board. */
+  /** "Can I take / give X?" — decided by the rules engine (js/rules.js) BEFORE any language model.
+      Every line names its rule and its source. */
   function drugAnswer(t, person) {
-    const prof = person.med; const no = Medical.blocked(prof); const items = Emergency.onBoard();
     const named = Object.entries(SUPPLY).filter(([, s]) => s.drug && s.rx.test(t)).map(([c]) => c);
-    const who = person.me ? 'you' : person.name.split(' ')[0];
     if (!named.length) return null;
-    const lines = named.map((c) => {
-      const it = Emergency.find(c, items); const s = SUPPLY[c];
-      if (no[c]) return `<li class="l3"><b>Do not ${person.me ? 'take' : 'give'} ${esc(s.name.toLowerCase())}</b> — ${esc(who)} ${person.me ? 'are' : 'is'} marked as allergic to ${esc(no[c])}.</li>`;
-      const stock = it ? (it.qty > 0 ? `On board: ${esc(it.name)} (${it.qty} ${esc(it.unit)}${it.note ? ', ' + esc(it.note) : ''}).` : `${esc(it.name)} is out of stock.`) : 'Not in the ship inventory.';
-      return `<li class="l0"><b>${esc(s.name)}</b>: no allergy on record. ${stock} Use the dose on the medical checklist and tell the Crew Medical Officer.</li>`;
+    const who = person.me ? 'you' : person.name.split(' ')[0];
+    const head = { block: (n) => `⛔ Do not ${person.me ? 'take' : 'give'} ${n}`, caution: (n) => `⚠ ${n}: possible, with caution`, ok: (n) => `✓ ${n}: no contraindication found` };
+    const blocks = named.map((c) => {
+      const r = Rules.check(c, person); const n = SUPPLY[c].name.toLowerCase();
+      const srcs = [...new Map(r.rules.flatMap((x) => x.src).map((x) => [x.id, x])).values()];
+      return `<div class="rule ${r.status}"><p class="rule-h">${head[r.status](n)}</p>
+        <ul>${r.rules.map((x) => `<li class="${x.level}"><code>${x.id}</code> ${esc(x.text)}</li>`).join('')}</ul>
+        ${r.status !== 'block' && r.dose ? `<p class="rule-dose"><b>Reference dose:</b> ${esc(r.dose)}. Confirm with the mission medical checklist and tell the Crew Medical Officer.</p>` : ''}
+        ${srcs.length ? `<p class="src">${icon('shield')}<span>Sources: ${srcs.map((x) => (x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label))).join(' · ')}</span></p>` : ''}</div>`;
     });
-    const say = named.map((c) => (no[c] ? `Do not ${person.me ? 'take' : 'give'} ${SUPPLY[c].name}, allergy to ${no[c]}.` : `${SUPPLY[c].name}: no allergy on record.`)).join(' ');
-    return { html: `<ul class="ans-list">${lines.join('')}</ul>${prof && Medical.empty(prof) ? '<p class="muted small">The medical profile is empty — fill it in so this check is reliable.</p>' : ''}`, say };
+    const say = named.map((c) => { const r = Rules.check(c, person); return r.status === 'block' ? `Do not ${person.me ? 'take' : 'give'} ${SUPPLY[c].name}. ${r.rules.find((x) => x.level === 'block').text}.` : `${SUPPLY[c].name}: ${r.status === 'ok' ? 'no contraindication found' : 'possible with caution'}.`; }).join(' ');
+    return { html: blocks.join('') + `<p class="engine">${icon('check')}Decided by the rules engine v${RULES_VERSION} for ${esc(who)} — no language model involved.</p>`, say, ruled: true };
+  }
+
+  /** Answer from the onboard knowledge base: the best protocol, its steps, when to escalate, and its sources. */
+  function kbAnswer(hits, person) {
+    const e = hits[0].e; const also = hits.slice(1).filter((h) => h.s > hits[0].s * 0.6).map((h) => h.e);
+    const srcs = e.src.map((k) => SRC[k]).filter(Boolean);
+    const html = `<p class="kb-h"><span class="kb-cat ${e.cat}">${{ medical: 'Medical', wellbeing: 'Wellbeing', ship: 'Ship' }[e.cat]}</span><b>${esc(e.title)}</b></p>
+      <p>${esc(e.a)}</p><ol>${e.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+      <p class="l2"><b>Escalate:</b> ${esc(e.esc)}</p>
+      ${also.length ? `<p class="muted small">Related: ${also.map((x) => esc(x.title)).join(' · ')}</p>` : ''}
+      <p class="src">${icon('shield')}<span>Source: onboard protocol <code>KB-${e.id}</code> (knowledge base v${KB_VERSION})${srcs.length ? ' · ' + srcs.map((x) => `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(' · ') : ''}</span></p>`;
+    return { html, say: `${e.title}. ${e.a} ${e.steps[0]} ${e.esc}`, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : null, kb: hits.map((h) => h.e) };
+  }
+
+  /** Nothing on board covers it: say so and escalate — never improvise. */
+  function noProtocol() {
+    const env = Engine.env();
+    return { html: `<p class="l2"><b>No onboard protocol for this question.</b> NovaCare only answers from its knowledge base (v${KB_VERSION}) and the rules engine, so it will not guess.</p>
+      <p>Escalate: ask the Crew Medical Officer, or send the question to ground — ${esc(env.commNote)}</p>`, say: 'No onboard protocol for this question. Escalate to the Crew Medical Officer or ground.', none: true };
   }
 
   function profileAnswer(person) {
@@ -317,35 +342,41 @@ const Assistant = (() => {
 
   /** Answer a question. ctx.person = whose health it is about (default: you); ctx.emg = open emergency protocol. */
   function answer(q, ctx = {}) {
-    const t = fold(q).trim(); const person = ctx.person || Crew.members()[0];
+    const t = fold(q).trim();
+    // a question can be about a crewmate by name ("Can I give Mei amoxicillin?")
+    const named = !ctx.person && Crew.members().slice(1).find((m) => new RegExp('\\b' + fold(m.name.split(' ')[0]) + '\\b').test(t));
+    const person = ctx.person || named || Crew.members()[0];
     if (!t) return { html: '<p>Type or say a question.</p>', say: '' };
     if (!ctx.emg && RED_FLAG.test(t)) {
       const guess = Emergency.classify(t)[0];
       return { html: `<p class="l3"><b>This sounds like an emergency.</b> Call the crew now and open the emergency protocol — NovaCare will check the ship inventory and allergies for you.</p>`, say: 'This sounds like an emergency. Call the crew and open the emergency protocol.', act: { label: 'Open emergency help', act: 'emergency', id: person.id, guess } };
     }
-    if (/allerg|alerg|blood type|tipo de sangre|grupo sangu|medical profile|perfil medico|conditions?\b|condicion|what medication do|que medicamentos tom/.test(t)) return profileAnswer(person);
-    const drug = /take|give|tomar|dar|darle|puedo|can i|can he|can she|safe|seguro/.test(t) || ctx.emg ? drugAnswer(t, person) : null;
-    if (drug) return drug;
+    // 1) rules engine: medication questions are decided here, before anything else
+    const drug = drugAnswer(t, person); if (drug) return drug;
+    if (/allerg|alerg|blood type|tipo de sangre|grupo sangu|medical profile|perfil medico|my conditions|mis condiciones|what medication do|que medicamentos tom/.test(t)) return profileAnswer(person);
     if (ctx.emg && /what (do|should)|que (hago|hacer|le doy|doy)|medic|medicine|give|dar|pill|pastill|treat|tratar|help|ayud/.test(t)) return emergencyAdvice(ctx.emg, person);
-    if (/do we have|is there|are there|have we got|tenemos|hay\b|queda|inventory|inventario|on board|a bordo|stock|supplies|suministro/.test(t)) return inventoryAnswer(t);
-    for (const [ids, rx] of IND_WORDS) if (rx.test(t)) return indicatorAnswer(ids, person);
-    for (const [rx, name, ids, text, when] of SYMPTOMS) {
-      if (!rx.test(t)) continue;
-      const rel = ids.map((id) => { const st = person.me ? Engine.status(id) : person.latest[id] || {}; return st.v != null && st.level >= 1 ? `${IND[id].short} ${lvlWord(st.level)} (${Engine.fmt(IND[id], st.v)} ${IND[id].unit})` : null; }).filter(Boolean);
-      return { html: `<p><b>${name}.</b> ${esc(text)}</p>${rel.length ? `<p>Related readings to watch: ${esc(rel.join(', '))}.</p>` : ''}<p class="l2">${esc(when)}</p>`, say: `${text} ${when}` };
-    }
+    if (/do we have|is there any|are there any|have we got|\btenemos\b|nos queda|\bhay (algun|alguna|mas|suficiente|epinefrina|oxigeno)|inventory|inventario|on board|a bordo|in stock|supplies|suministro/.test(t)) return inventoryAnswer(t);
+    // 2) your own data: readings and status
+    const aboutMine = /\bmy\b|\bmi\b|\bmis\b|is (his|her|their)|how is|how are|como esta|como estan|what is my|cual es mi|level|nivel/.test(t);
+    const ind = IND_WORDS.find(([, rx]) => rx.test(t));
+    if (ind && aboutMine) return indicatorAnswer(ind[0], person);
+    if (/how am i|como estoy|my status|mi estado|readiness|summary|resumen|how is my health|como esta mi salud/.test(t)) return statusAnswer(person);
+    if (/\btoday\b|\bhoy\b|routine|rutina|\bdue\b|pending|pendiente|check.?in|what should i do today|que debo hacer hoy|que tengo que hacer/.test(t)) return person.me ? todayAnswer() : statusAnswer(person);
+    // 3) onboard knowledge base: medical, wellbeing and ship protocols, searched on the device
+    const hits = KBSearch.search(t);
+    if (hits.length) return kbAnswer(hits, person);
+    if (ind) return indicatorAnswer(ind[0], person);
     for (const [id, rx] of SYS_WORDS) if (rx.test(t)) {
       const s = SYS[id]; const lv = person.me ? Engine.systemLevel(id) : person.systems[id];
       return { html: `<p><b>${esc(s.name)}:</b> <span class="${lc(lv)}">${lvlWord(lv)}</span>.</p><p>${esc(s.space)}</p>${indicatorAnswer(s.indicators, person).html}`, say: `${s.name}: ${lvlWord(lv)}.` };
     }
-    if (/how am i|how is|how are|status|estado|como estoy|como esta|readiness|health|salud|resumen|summary/.test(t)) return statusAnswer(person);
-    if (/today|hoy|routine|rutina|due|pending|pendiente|check.?in|what should i do|que debo hacer|que tengo que/.test(t)) return person.me ? todayAnswer() : statusAnswer(person);
     if (ctx.emg) return emergencyAdvice(ctx.emg, person);
-    return { html: `<p>I can answer about your readings, body systems, symptoms, allergies and medication, and what is in the ship inventory. Try one of the suggestions below.</p>`, say: 'Try asking about your readings, symptoms, allergies or the ship inventory.' };
+    // 4) nothing covers it: escalate
+    return noProtocol();
   }
-  const SUGGEST = ['How am I doing?', 'Is my blood pressure OK?', 'What should I do today?', 'I have a headache', 'Can I take ibuprofen?', 'What are my allergies?', 'Do we have an epinephrine auto-injector?'];
-  const SUGGEST_EMG = ['What medicine can I give?', 'Is it safe to give aspirin?', 'What are their allergies?', 'Do we have oxygen?'];
-  return { answer, SUGGEST, SUGGEST_EMG };
+  const SUGGEST = ['How am I doing?', 'Is my blood pressure OK?', 'I have a headache', 'I feel anxious', 'I can\'t sleep', 'Cabin CO₂ is high', 'Can I take ibuprofen?', 'Can I give Mei amoxicillin?'];
+  const SUGGEST_EMG = ['What medicine can I give?', 'Can I give amoxicillin?', 'Is it safe to give aspirin?', 'What are their allergies?', 'Do we have oxygen?'];
+  return { answer, SUGGEST, SUGGEST_EMG, drugAnswer };
 })();
 
 /* ---------- views ---------- */
@@ -372,6 +403,8 @@ function viewMedical() {
         <div class="field"><label for="med-blood">Blood type</label><select id="med-blood" name="blood" class="text">${BLOOD_TYPES.map((b) => `<option value="${b}" ${p.blood === b ? 'selected' : ''}>${b || 'Unknown'}</option>`).join('')}</select></div>
         <div class="field"><label for="med-notes">Notes for whoever helps you</label><input id="med-notes" name="notes" class="text" type="text" maxlength="300" value="${esc(p.notes)}" placeholder="e.g. Wears contact lenses"></div>
       </div>
+      <div class="field"><label>Pre-flight baseline <span class="muted">(from the medical exam before launch)</span></label>
+        <div class="field-row">${[['hr', 'Resting heart rate', 'bpm'], ['sys', 'Systolic BP', 'mmHg'], ['dia', 'Diastolic BP', 'mmHg'], ['mass', 'Body mass', 'kg']].map(([k, l, u]) => `<div class="field"><label for="bl-${k}" class="sm">${l} (${u})</label><input id="bl-${k}" name="bl-${k}" class="text num" type="number" step="any" min="0" value="${p.baseline && p.baseline[k] != null ? p.baseline[k] : ''}"></div>`).join('')}</div></div>
       <div class="btnrow end"><button class="btn primary" type="submit">${icon('check')}Save medical profile</button></div>
     </form></section>`;
 }
@@ -379,9 +412,10 @@ function viewMedical() {
 function askHtml(m) {
   const chat = m.chat || [];
   return `<div class="sheet narrow ask" role="dialog" aria-modal="true" aria-label="Questions">
-    <header><div><h2>${icon('chat')}Questions</h2><p class="sub">Ask about your health by text${Voice.ok ? ' or voice' : ''}. Answers use your readings, medical profile and the ship inventory — no link to Earth needed.</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <header><div><h2>${icon('chat')}Questions</h2><p class="sub">Health, emotional wellbeing or ship problems — by text${Voice.ok ? ' or voice' : ''}. No link to Earth needed.</p>
+      <p class="engines"><span>${icon('check')}Rules engine v${RULES_VERSION.split(' ')[0]}</span><span>${icon('file')}Knowledge base v${KB_VERSION.split(' ')[0]} · ${KB.length} protocols</span><span class="${LocalLLM.ready() ? 'on' : ''}">${icon('chat')}Local model ${LocalLLM.ready() ? LocalLLM.model : 'off'}</span></p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
-      <div class="chat" id="chat">${chat.length ? chat.map((x) => `<div class="q">${esc(x.q)}</div><div class="a">${x.a.html}${x.a.act ? `<button class="btn ghost sm" data-act="${x.a.act.act}" ${x.a.act.id ? `data-id="${esc(x.a.act.id)}"` : ''} ${x.a.act.v ? `data-v="${x.a.act.v}"` : ''} ${x.a.act.guess ? `data-guess="${x.a.act.guess}"` : ''}>${esc(x.a.act.label)}</button>` : ''}</div>`).join('')
+      <div class="chat" id="chat">${chat.length ? chat.map((x) => `<div class="q">${esc(x.q)}</div><div class="a">${x.a.llm ? llmHtml(x.a) : x.a.html}${x.a.thinking ? `<p class="muted small">${icon('refresh')}Wording with the local model…</p>` : ''}${x.a.act ? `<button class="btn ghost sm" data-act="${x.a.act.act}" ${x.a.act.id ? `data-id="${esc(x.a.act.id)}"` : ''} ${x.a.act.v ? `data-v="${x.a.act.v}"` : ''} ${x.a.act.guess ? `data-guess="${x.a.act.guess}"` : ''}>${esc(x.a.act.label)}</button>` : ''}</div>`).join('')
         : '<p class="muted small">Try one of these, or ask your own question:</p>'}</div>
       <div class="chips ask-sug">${Assistant.SUGGEST.map((s) => `<button data-act="askq" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
       <form id="ask-form" class="ask-row"><input id="ask-in" name="q" class="text" type="text" maxlength="300" autocomplete="off" placeholder="${m.listening ? 'Listening…' : 'Ask a question'}">${micBtn('ask-in')}<button class="btn primary" type="submit">${icon('next')}<span class="vh">Ask</span></button></form>
@@ -418,4 +452,11 @@ function emgAskHtml(md) {
     ${chat.length ? '' : `<div class="chips ask-sug">${Assistant.SUGGEST_EMG.map((s) => `<button data-act="emgq" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>`}
     <form id="emg-ask-form" class="ask-row"><input id="emg-ask-in" name="q" class="text" type="text" maxlength="300" autocomplete="off" placeholder="e.g. What medicine can I give?">${micBtn('emg-ask-in')}<button class="btn sos" type="submit">${icon('next')}<span class="vh">Ask</span></button></form>
   </section>`;
+}
+
+/* A knowledge-base answer reworded by the local model: its text, then the protocol's own sources. */
+function llmHtml(a) {
+  const txt = esc(a.llm).replace(/\[(KB-[A-Z]+-\d+)\]/g, '<code>$1</code>').replace(/\n+/g, '<br>');
+  const src = (a.html.match(/<p class="src">[\s\S]*?<\/p>/) || [''])[0];
+  return `<p>${txt}</p>${src}<p class="engine">${icon('chat')}Worded by the local model (${esc(LocalLLM.model)}) from the protocol above — it cannot add facts or doses.</p>`;
 }

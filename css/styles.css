@@ -1404,3 +1404,27 @@ body { background: var(--bg); }
 .bodyscan .skin { filter: saturate(0.55) brightness(1.02); }
 [data-theme="dark"] #nav { box-shadow: 0 0 0 1px var(--line), var(--sh-2); }
 @media (max-width: 900px) { .hero-live { display: none; } .lobby-hero .hero-cta .btn { flex: 1 1 auto; } }
+
+/* ---------- Questions: rules engine, knowledge base, local model ---------- */
+.engines { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.engines span { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: var(--surface-3); color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.engines .ic { width: 12px; height: 12px; }
+.engines span.on { background: color-mix(in srgb, var(--ok) 14%, var(--surface)); color: var(--ok); }
+.rule { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.rule + .rule { margin-top: 6px; }
+.rule.block { border-color: color-mix(in srgb, var(--crit) 50%, var(--line)); background: var(--sos-soft); }
+.rule.caution { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.rule.ok { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+.rule-h { font-weight: 700; }
+.rule.block .rule-h { color: var(--crit); } .rule.caution .rule-h { color: var(--warn); } .rule.ok .rule-h { color: var(--ok); }
+.rule ul { list-style: none; margin: 0; padding: 0 !important; display: grid; gap: 3px; font-size: 13px; }
+.rule li.block { color: var(--crit); } .rule li.caution { color: var(--warn); }
+.rule-dose { font-size: 13px; }
+.a code, .rule code, .src code { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 5px; border-radius: 4px; background: var(--surface-3); color: var(--ink); }
+.engine { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--faint); }
+.engine .ic { width: 13px; height: 13px; }
+.kb-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kb-cat { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand-ink); }
+.kb-cat.wellbeing { background: var(--accent-soft); color: var(--accent-ink); }
+.kb-cat.ship { background: var(--surface-3); color: var(--muted); }
+.chat .a ol { margin: 0; padding-left: 18px; display: grid; gap: 2px; }

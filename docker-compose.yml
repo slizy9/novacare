@@ -1,0 +1,43 @@
+# NovaCare on the ship's terminal — everything local, no internet needed after the first setup.
+#
+#   docker compose up -d        → open http://localhost:8080
+#
+# Services
+#   web     the NovaCare app (static files served by nginx)
+#   llm     a small local language model (Ollama). Wording only: the rules engine decides
+#           medication questions and answers come from the onboard knowledge base (js/kb.js).
+#   llm-pull  downloads the model once, then exits. After that the stack runs fully offline.
+#
+# The app works without the llm service too: answers then show the protocol text directly.
+
+services:
+  web:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  llm:
+    image: ollama/ollama:0.5.7
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_ORIGINS=*          # let the NovaCare page on this terminal call the model
+      - OLLAMA_KEEP_ALIVE=24h
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  llm-pull:
+    image: ollama/ollama:0.5.7
+    depends_on:
+      - llm
+    environment:
+      - OLLAMA_HOST=llm:11434
+    entrypoint: ["/bin/sh", "-c", "sleep 3 && ollama pull qwen2.5:1.5b"]
+    restart: "no"
+
+volumes:
+  ollama:

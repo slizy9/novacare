@@ -28,6 +28,26 @@ Live at https://novacare.earth (GitHub Pages).
 
 People only appear in the missions they created or joined. A **simulated demo crew** of three synthetic astronauts (with predefined medical profiles) can be switched on or off in Mission settings.
 
+## How Questions answers (and why it cannot invent a dose)
+
+NovaCare does not use a "trained" container. Three separate layers, all running on the ship's terminal with no internet:
+
+1. **Rules engine — the authority** (`js/rules.js`, `js/medical.js`). Medication questions are decided here, before anything else: allergies from the medical profile (R-ALG), interactions with what the person takes and their conditions (R-INT, R-CON), stock in the ship inventory (R-STK), and reference doses — by body weight where it applies (paracetamol 15 mg/kg). Every line shows its rule id and its source. Thresholds, pre-flight baselines and red-flag symptoms are also rules.
+2. **Onboard knowledge base — versioned, searched, not trained** (`js/kb.js`). Short protocols for medical problems, emotional wellbeing and ship failures (CO₂, fire, depressurisation, toxic leak, power, water, comms…), each with steps, when to escalate and its NASA source. Questions are matched by local search (BM25). The mission profile (environment, communication delay) and NASA OSDR evidence (`js/osdr.js`) complete it.
+3. **Small local language model — wording only** (`js/llm.js`, optional). It rewords the protocols the search found, cites them as `[KB-…]`, and must reply "No onboard protocol — escalate" when they do not cover the question. It never receives medication questions.
+
+If nothing in the knowledge base matches, NovaCare answers **"No onboard protocol for this question — escalate"** instead of guessing.
+
+**Demo:** ask "¿Le doy amoxicilina a Mei?" (Mei Tanaka, simulated crew, is allergic to penicillin). The rules engine blocks it with `R-ALG-01` and its source, and says no language model was involved.
+
+### Run everything on the terminal (docker-compose)
+
+```bash
+docker compose up -d
+```
+
+Then open http://localhost:8080. The first start downloads the small model (`qwen2.5:1.5b`) once; after that the stack runs fully offline. Without the `llm` service the app still answers, showing the protocol text directly. The public website (novacare.earth) never calls a model.
+
 ## Database setup (Supabase)
 
 1. Create a free project at https://supabase.com.
@@ -58,6 +78,10 @@ Registered people appear in **Authentication → Users** and in the `profiles` t
 - `js/art.js` — illustrations drawn for the app: the interactive body scan, the crew portrait and the mission scenes
 - `img/` — sign-in photo
 - `js/medical.js` — medical profile, inventory-aware emergency plan, the Questions assistant and voice input
+- `js/rules.js` — medication rules engine: allergies, interactions, conditions, stock, weight-based reference doses
+- `js/kb.js` — onboard knowledge base (versioned protocols: medical, wellbeing, ship) and its local search
+- `js/llm.js` — optional local language model (wording only), used by `docker-compose.yml`
+- `js/status.js` — periodic status updates with follow-up questions, and "Ask crew for help"
 - `js/osdr.js` — offline snapshot of NASA OSDR studies per body system (rebuild with `python3 tools/osdr_snapshot.py`)
 - `js/crew.js` — crew summaries, verdicts, crew-wide findings, simulated crew, emergency alerts and protocols
 - `js/sections.js` — Crewmates, Mission status, Analysis and the emergency screens

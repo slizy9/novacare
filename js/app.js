@@ -983,7 +983,10 @@ function keepAccount(next) {
 /* ---------- Questions and emergency help ---------- */
 function askNow(q) {
   q = String(q || '').trim(); const m = ui.modal; if (!q || !m || m.type !== 'ask') return;
-  const a = Assistant.answer(q); m.chat = [...(m.chat || []), { q, a }].slice(-20); renderModal();
+  const a = Assistant.answer(q); const entry = { q, a }; m.chat = [...(m.chat || []), entry].slice(-20);
+  // the local model only rewords knowledge-base answers; rules-engine answers are never sent to it
+  if (a.kb && LocalLLM.ready()) { a.thinking = true; LocalLLM.phrase(q, a.kb, Crew.members()[0]).then((txt) => { a.thinking = false; if (txt) a.llm = txt; if (ui.modal === m) renderModal(); }); }
+  renderModal();
   if (m.speak && a.say) Voice.speak(a.say);
 }
 function emgMate(m) { return Crew.members().find((x) => x.id === m.id) || { id: m.id, name: m.name || 'Crew member', latest: {}, advisories: [], systems: {}, med: null }; }
@@ -1036,7 +1039,8 @@ document.addEventListener('submit', (ev) => {
   if (ev.target.id === 'emg-describe') { ev.preventDefault(); describeNow(new FormData(ev.target).get('text')); }
   if (ev.target.id === 'medical-form') {
     ev.preventDefault(); const f = new FormData(ev.target); const lines = (k) => String(f.get(k) || '').split('\n').map((x) => x.trim()).filter(Boolean);
-    Medical.save({ blood: f.get('blood'), allergies: f.getAll('alg'), other: f.get('other'), meds: lines('meds'), conditions: lines('conditions'), notes: f.get('notes') });
+    Medical.save({ blood: f.get('blood'), allergies: f.getAll('alg'), other: f.get('other'), meds: lines('meds'), conditions: lines('conditions'), notes: f.get('notes'),
+      baseline: { hr: f.get('bl-hr'), sys: f.get('bl-sys'), dia: f.get('bl-dia'), mass: f.get('bl-mass') } });
     Crew.refresh(true); render(); toast('Medical profile saved');
   }
   if (ev.target.id === 'reauth-form') {
@@ -1086,6 +1090,7 @@ const netChange = () => { refreshConn(); if (Auth.user()) renderTop(); };
 window.addEventListener('online', netChange);
 window.addEventListener('offline', netChange);
 
+LocalLLM.ping(); // is the ship terminal's local model running? (never on the public website)
 if (Auth.restore()) Engine.load();
 else if (!Auth.hasUsers()) ui.auth = 'register';
 render();
