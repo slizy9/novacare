@@ -12,24 +12,26 @@ python3 -m http.server 8765
 
 Then open http://localhost:8765. It works fully offline and stores data in the browser (localStorage) — by design, since a Mars crew cannot depend on a link to Earth.
 
-The app opens with a 33-day demo mission. Use **Settings (environment chip) → Start a new mission** for an empty one, and the **▸** button next to the mission day to advance time during a demo.
+Sign in, create an account, or tap **Continue as guest** (guest data stays on the device and never syncs). New accounts start with no mission; a demo mission can be loaded from **Settings → Load demo mission**, and the **▸** button next to the mission day advances time during a demo.
+
+Live at https://novacare.earth (GitHub Pages).
 
 ## What it does
 
-After signing in, NOVACARE opens on the **Lobby** and has four more sections:
+- **Lobby** — you first: readiness, measurements due, main concern and radiation dose, then a short look at the mission (day, crew on track, emergencies, low supplies) and shortcuts to every section.
+- **Personal** — *Overview* (profile, key vitals, **Add info** = check-in, **Questions**, the interactive body scan with real NASA OSDR studies per body system), *Today* (routine, XP, patches), *Vitals* (15 indicators with trends), *Hazards* (the five hazards of spaceflight) and *Medical profile* (allergies to medicines, materials and food; medication; conditions; blood type; notes).
+- **Questions** — ask by text or voice (browser dictation). Answers come from your own readings, body systems, symptoms, your medical profile and the ship inventory, fully offline. "Can I take ibuprofen?" checks your allergies and what is on board. Red-flag phrases send you to emergency help.
+- **Crew** — *Crewmates* (readiness, verdict, key vitals, main concern) and *Ship inventory* (add/update/use/remove items, low-stock warnings, CSV upload/download, one-click standard medical kit).
+- **Emergency** — describe what is happening (text or voice, English or Spanish keywords) or pick one of 10 situations. NovaCare alerts the crew, opens the protocol checklist with a timer, shows the person's allergies, medication and latest readings, and lists **what to use from the ship inventory**, what is missing (with improvised alternatives) and **what must not be given** (allergies, blood thinners). "What medicine can I give?" is answered for that person.
+- **Mission** — *Mission status* (mission day, crew readiness, roster, 7-day log, report export) and *Missions* (your missions, create, join with a code, and **All missions** — every mission people have created, with a Join button).
+- **Analysis** — a verdict per astronaut with reasons, crew-wide patterns, a readiness comparison chart and the full indicator matrix.
 
-- **Lobby** — the main hub. It lists your missions: **create a mission** (name, environment, planned length) to get a code to share, **join with a code** a crewmate gave you, switch between missions or leave one. Each mission keeps its own readings, crew and ship inventory. The logo and the keys 1–5 also switch sections.
-- **Personal** — your profile, key vitals, health shortcuts, an interactive body scan of the seven body systems and your readiness score (Overview); today's routine, XP and patches (Today); all 15 indicators with trends (Vitals); and the five hazards of spaceflight (Hazards). Start a guided check-in from any of them.
-- **Crew** — two tabs. *Ship inventory*: what the ship carries (medical, food and water, equipment, hygiene), with quantities the crew can add, update, use (+/−) or remove, a low-stock warning per item, and CSV upload/download (`name, category, quantity, unit, minimum, note`). *Crewmates*: every crew member on the same mission code: readiness, verdict, key vitals, main concern and whether they checked in today. **Emergency** opens a guided flow: pick what is happening (10 situations, e.g. unresponsive, trouble breathing, chest pain, bleeding, head injury), the crew is alerted, and NOVACARE shows a step checklist with a timer next to that person's latest readings and warning signs. Alerts work offline and reach the crew when the link returns.
-- **Mission status** — mission day of the planned length, crew readiness, on-track count, open advisories and check-ins, a crew readiness chart, the roster and a 7-day mission log. It updates every mission day (**Advance to MD …**) and exports a mission report.
-- **Analysis** — a verdict for each astronaut (On track / Watch / Needs attention / At risk) with reasons, crew-wide patterns (shared cabin CO₂, possible infection, sleep, exercise, mood, missed check-ins, radiation), a readiness comparison chart and a status matrix of every indicator.
-
-Crewmates join the same mission with its **mission code** — at registration (default `NOVA-1`) or later from the Lobby. A **simulated demo crew** of three synthetic astronauts, clearly labelled, can be switched on or off in Mission settings so the crew views have data in a demo.
+People only appear in the missions they created or joined. A **simulated demo crew** of three synthetic astronauts (with predefined medical profiles) can be switched on or off in Mission settings.
 
 ## Database setup (Supabase)
 
 1. Create a free project at https://supabase.com.
-2. **SQL Editor → New query**: paste `supabase/setup.sql` and run it. This creates `profiles` (registered crew), `missions` (each person's data), `crew_status` (the summary crewmates see) and `alerts` (emergencies) and `inventory` (the shared ship inventory). Row Level Security keeps raw data private and limits crew data and alerts to people on the same mission code. If you ran an earlier version, run it again: it is safe to re-run.
+2. **SQL Editor → New query**: paste `supabase/setup.sql` and run it. It creates `profiles` (registered crew, with a role fixed at sign-up), `missions` (each person's data, including the medical profile), `mission_directory` (every mission people create, visible to all), `mission_members` (who is on which mission), `crew_status` (the summary crewmates see, one per person per mission), `alerts` (emergencies) and `inventory` (the shared ship inventory). Row Level Security keeps raw data private and limits crew data, alerts and inventory to members of the same mission. It is safe to re-run. If the project already had tables with these names from something else, run `supabase/rename_old_tables.sql` first.
 3. **Authentication → Sign In / Providers → Email**: enabled. For a demo, turn off *Confirm email* so accounts work immediately.
 4. **Project Settings → API**: copy the *Project URL* and the *anon public* key into `js/config.js`.
 5. Host the folder on any static host (GitHub Pages, Netlify, Vercel). It must be served over https for offline mode to work.
@@ -55,6 +57,8 @@ Registered people appear in **Authentication → Users** and in the `profiles` t
 - `js/missions.js` — missions (create, join by code, switch), the ship inventory and their screens
 - `js/art.js` — illustrations drawn for the app: the interactive body scan, the crew portrait and the mission scenes
 - `img/` — sign-in photo
+- `js/medical.js` — medical profile, inventory-aware emergency plan, the Questions assistant and voice input
+- `js/osdr.js` — offline snapshot of NASA OSDR studies per body system (rebuild with `python3 tools/osdr_snapshot.py`)
 - `js/crew.js` — crew summaries, verdicts, crew-wide findings, simulated crew, emergency alerts and protocols
 - `js/sections.js` — Crewmates, Mission status, Analysis and the emergency screens
 - `js/icons.js` — SVG icon set
@@ -65,8 +69,9 @@ Registered people appear in **Authentication → Users** and in the `profiles` t
 
 ## Design notes
 
-- **Look:** icy glass surfaces, navy type and a pink accent, with Inter throughout. An animated tab bar: a coloured bubble glides to the active section (each section has its own colour, which also tints the page). A dark mode (moon icon in the header) suits the sleep cycle; the choice is remembered per device.
+- **Look:** clinical premium and minimal — porcelain surfaces with hairline borders, one deep clinical teal for actions, muted status colours, Fraunces for titles and key numbers and Inter for everything else, a quiet side navigation and a matching dark mode (moon icon) for the sleep cycle.
 - **Summarised by default:** each screen leads with the answer (e.g. "2 things need your attention today"), then the detail is one tap away — advisories open on demand, "Show more" for longer lists, system descriptions and the full indicator matrix behind disclosures.
+- **Always current:** the service worker revalidates every file, so a new version shows up on the next load (the page reloads once when it does); the footer shows the version number.
 - **Fluid:** the tab highlight glides to the section you pick and the new page slides in from that side (View Transitions where the browser supports them), key numbers count up on arrival, sheets slide in and out, and updates inside a section keep your scroll position instead of reloading the page. All motion turns off with the system "reduce motion" setting.
 - **Accessible:** health status is always colour plus a symbol or word, text meets WCAG AA contrast in both themes, every control has a visible focus state.
 

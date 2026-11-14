@@ -904,9 +904,16 @@ const actions = {
   },
   report() { download(`novacare-report-MD${state.md}.txt`, Engine.report(), 'text/plain'); },
   export() { download(`novacare-data-MD${state.md}.json`, JSON.stringify(state, null, 2), 'application/json'); },
-  demo() { if (confirm('Replace current data with the 33-day demo mission?')) { state = Engine.demo(); Engine.save(); ui.sys = null; ui.modal = null; render(); toast('Demo mission loaded'); } },
-  reset() { if (confirm('Erase all readings and start a new mission at day 1?')) { const n = state.name, e = state.env; state = Engine.fresh(); state.name = n; state.env = e; Engine.save(); ui.sys = null; ui.modal = null; render(); toast('New mission started — log your first check-in'); } },
+  demo() { if (confirm('Replace current data with the 33-day demo mission?')) { state = keepAccount(Engine.demo()); Engine.save(); ui.sys = null; ui.modal = null; render(); toast('Demo mission loaded'); } },
+  reset() { if (confirm('Erase all readings and start a new mission at day 1?')) { const e = state.env; state = keepAccount(Engine.fresh()); state.env = e; Engine.save(); ui.sys = null; ui.modal = null; render(); toast('New mission started — log your first check-in'); } },
 };
+
+/* Loading the demo or restarting replaces the readings, never the person's missions, profile or name. */
+function keepAccount(next) {
+  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
+  if (state && state.name) next.name = state.name;
+  return next;
+}
 
 /* ---------- Questions and emergency help ---------- */
 function askNow(q) {
@@ -970,7 +977,8 @@ document.addEventListener('submit', (ev) => {
 });
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && ui.modal) { actions.close(); return; }
-  if (Auth.user() && !ui.modal && !ev.metaKey && !ev.ctrlKey && !ev.altKey && !ev.target.matches('input, select, textarea') && SECTIONS[+ev.key - 1]) { actions.view({ v: SECTIONS[+ev.key - 1].v }); return; }
+  if (Auth.user() && !ui.modal && !ev.metaKey && !ev.ctrlKey && !ev.altKey && !(ev.target.matches && ev.target.matches('input, select, textarea')) && SECTIONS[+ev.key - 1]) { actions.view({ v: SECTIONS[+ev.key - 1].v }); return; }
+  if (!ev.target.matches) return;
   if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('[role="button"][data-act]')) { ev.preventDefault(); ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
   if (ev.key === 'Enter' && ev.target.matches('input[data-in]') && ui.modal) { ev.preventDefault(); actions.save(); }
 });
