@@ -1,0 +1,4 @@
+# Local-only files
+*.local.md
+.DS_Store
+__pycache__/
