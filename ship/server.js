@@ -307,6 +307,7 @@ function restDelete(t, params, uid) {
     return r;
   }));
 }
+const GUEST_ALERT_TYPES = ['help', 'assist', 'unresponsive', 'breathing', 'chest', 'bleeding', 'head', 'allergy', 'toxic', 'burn', 'fracture', 'psych'];
 const RPC = {
   // Showcase mission NOVA-1: guests see its real crew, without medical history.
   showcase_crew: () => db.prepare(`select user_id, name, role, summary, updated_at from crew_status where crew_code = 'NOVA-1'
@@ -314,6 +315,27 @@ const RPC = {
     const s = fromDb('json', r.summary) || {}; delete s.med;
     return { user_id: r.user_id, name: r.name, role: r.role, summary: s, updated_at: r.updated_at };
   }),
+  // Guests on NOVA-1 see its calls for help, and their own reach its crew (same rules as supabase/setup.sql):
+  // only help and emergency types, guests change guest alerts only, at most 10 guest alerts in 10 minutes.
+  showcase_alerts: () => db.prepare(`select id, from_user, from_name, about_id, about_name, type, note, md, status, created_at, resolved_at from alerts
+      where crew_code = 'NOVA-1' and created_at > ? and type in (${GUEST_ALERT_TYPES.map(() => '?').join(', ')}) order by created_at desc limit 50`)
+    .all(new Date(Date.now() - 2 * 864e5).toISOString(), ...GUEST_ALERT_TYPES),
+  showcase_raise: (uid, b) => {
+    b = b || {};
+    if (!GUEST_ALERT_TYPES.includes(b.p_type)) throw new ApiError(400, 'P0001', 'Unknown alert type');
+    if (!['active', 'resolved'].includes(b.p_status)) throw new ApiError(400, 'P0001', 'Unknown status');
+    const now = nowIso(); const resolvedAt = b.p_status === 'resolved' ? now : null;
+    if (db.prepare('select 1 from alerts where id = ?').get(String(b.p_id))) {
+      db.prepare(`update alerts set status = ?, resolved_at = ? where id = ? and crew_code = 'NOVA-1' and from_user is null`).run(b.p_status, resolvedAt, String(b.p_id));
+      return null;
+    }
+    const recent = db.prepare(`select count(*) n from alerts where crew_code = 'NOVA-1' and from_user is null and created_at > ?`).get(new Date(Date.now() - 6e5).toISOString()).n;
+    if (recent >= 10) throw new ApiError(429, 'P0001', 'Too many guest alerts — try again in a few minutes');
+    db.prepare(`insert into alerts (id, crew_code, from_user, from_name, about_id, about_name, type, note, md, status, created_at, resolved_at)
+      values (?, 'NOVA-1', null, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(String(b.p_id), `${String(b.p_from_name || 'Guest').slice(0, 40)} (guest)`, String(b.p_about_id || '').slice(0, 80),
+      String(b.p_about_name || '').slice(0, 60), b.p_type, String(b.p_note || '').slice(0, 160), Number.isFinite(+b.p_md) ? +b.p_md : null, b.p_status, now, resolvedAt);
+    return null;
+  },
 };
 
 /* ---------- auth (GoTrue-compatible subset) ---------- */
@@ -508,7 +530,7 @@ const server = http.createServer(async (req, res) => {
     if (m) {
       if (m[1]) {
         if (!RPC[m[2]]) throw new ApiError(404, 'PGRST202', `Could not find the function public.${m[2]} without parameters in the schema cache`);
-        return send(res, 200, RPC[m[2]](ctx.uid));
+        return send(res, 200, RPC[m[2]](ctx.uid, body));
       }
       const t = m[2]; if (!TABLES[t]) throw new ApiError(404, 'PGRST205', `Could not find the table 'public.${t}' in the schema cache`);
       const params = url.searchParams; const prefer = String(req.headers.prefer || '');
