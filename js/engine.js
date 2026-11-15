@@ -120,7 +120,7 @@ const Engine = (() => {
 
   function status(id) {
     const ind = IND[id]; const s = series(id);
-    if (!s.length) return { id, level: -1, v: null, md: null, age: null, due: true, loggedToday: false };
+    if (!s.length) return { id, level: -1, v: null, md: null, age: null, due: !ind.exam, loggedToday: false };
     const last = s[s.length - 1]; const age = state.md - last.md;
     const c = classify(ind, last.v);
     return { id, level: c.level, dir: c.dir, v: last.v, md: last.md, age, due: age >= ind.cadence, loggedToday: age === 0,
@@ -138,6 +138,12 @@ const Engine = (() => {
     const pts = [100, 74, 40, 0];
     const st = INDICATORS.map((i) => status(i.id)).filter((s) => s.level >= 0);
     if (!st.length) return null;
+    // the most serious finding sets the band (ready / watch / attention / act now); each other finding lowers it a little
+    if (typeof Insight !== 'undefined') {
+      const f = Insight.findings({ lite: true }); if (!f.length) return 100;
+      const top = Math.max(...f.map((x) => x.level)); const base = [100, 84, 69, 45][top];
+      return Math.max(0, base - Math.min(12, (f.length - 1) * 3));
+    }
     const trendPenalty = advisories().filter((a) => a.trend).reduce((p, a) => p + (a.level >= 2 ? 5 : 2), 0);
     return Math.max(0, Math.round(avg(st.map((s) => pts[s.level])) - trendPenalty));
   }

@@ -110,7 +110,8 @@ const Crew = (() => {
         id: meta.id, name: meta.name || s.name || 'Crew member', role: meta.role || '', sim: !!meta.sim, me: !!meta.me,
         photo: photoFor(meta.name || s.name, s.photo),
         md, env: s.env, readiness: Engine.readiness(), days, latest, systems,
-        advisories: adv.map((a) => ({ key: a.key, title: a.title, level: a.level, trend: !!a.trend, ind: a.ind, detail: a.detail, who: a.esc.who })),
+        advisories: typeof Insight !== 'undefined' ? Insight.findings({ lite: true }).map((f) => ({ key: f.key, title: f.title, level: f.level, trend: f.kind === 'Trend', ind: f.ind, detail: f.detail, who: f.who }))
+          : adv.map((a) => ({ key: a.key, title: a.title, level: a.level, trend: !!a.trend, ind: a.ind, detail: a.detail, who: a.esc.who })),
         dose: Engine.cumulativeDose(), checkedInToday: Engine.checkedIn(s.days[md]),
         med: typeof Medical !== 'undefined' ? Medical.of(s, meta.sim ? meta.id : null) : null, // allergies etc., for the emergency flow
         predict: typeof Predict !== 'undefined' ? Predict.all().filter((p) => p.level > 0).slice(0, 3).map(({ key, title, level, text, when, now, future }) => ({ key, title, level, text, when, now, future })) : [], // risks ahead
@@ -175,7 +176,9 @@ const Crew = (() => {
     else if (maxAdv === 2 || now < 70) level = 2;
     else if (maxAdv === 1 || now < 85 || (delta != null && delta <= -8)) level = 1;
     const reasons = [];
-    if (now != null) reasons.push(`Readiness ${now}${delta != null && delta !== 0 ? `, ${delta > 0 ? 'up' : 'down'} ${Math.abs(delta)} in 7 days` : ', steady over 7 days'}`);
+    const why = (() => { const n = (l) => m.advisories.filter((a) => (l === 1 ? a.level === 1 : a.level >= l)).length; const act = n(2), watch = n(1);
+      return act || watch ? [act ? `${act} need${act === 1 ? 's' : ''} attention` : '', watch ? `${watch} to watch` : ''].filter(Boolean).join(', ') : 'nothing to act on'; })();
+    if (now != null) reasons.push(`Readiness ${now} — ${why}${delta != null && delta !== 0 ? ` · ${delta > 0 ? 'up' : 'down'} ${Math.abs(delta)} in 7 days` : ''}`);
     m.advisories.slice(0, 3).forEach((a) => reasons.push(a.title));
     if (!m.checkedInToday) reasons.push('No full check-in yet today');
     if (m.compliance < 0.6) reasons.push(`Checked in on ${Math.round(m.compliance * 7)} of the last 7 days`);

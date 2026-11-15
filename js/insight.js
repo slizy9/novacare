@@ -74,6 +74,18 @@ const PERSONAL_TEXT = {
   },
 };
 
+/* Which onboard protocol backs each finding, chosen by hand. No match means no protocol is shown,
+   never a guess from a word search (a wrong protocol is worse than none). */
+const PROTOCOL_FOR = {
+  'hr:low': 'MED-03', 'sys:low': 'MED-03', 'dia:low': 'MED-03', 'spo2:low': 'MED-15', 'temp:high': 'MED-06',
+  sleep: 'WB-04', mood: 'WB-01', stress: 'WB-03', exercise: 'MED-13', mass: 'MED-13', vision: 'MED-09', rad: 'MED-16', co2: 'SHIP-01',
+  ecg: 'MED-14', urine: 'MED-08',
+  't-sleep': 'WB-04', 't-mood': 'WB-01', 't-sans': 'MED-09', 't-inf': 'MED-06', 't-ex': 'MED-13', 't-dose': 'MED-16', 'p-bone': 'MED-13', 'p-dose': 'MED-16', 'p-sleep': 'WB-04',
+  'Chest pain': 'MED-14', 'Short of breath at rest': 'MED-15', 'Short of breath on effort': 'MED-15', 'Sudden vision loss or flashes': 'MED-09', 'Fainted or nearly fainted': 'MED-03',
+  'Severe pain': 'MED-21', 'Possible fever or infection': 'MED-06', 'Vision change': 'MED-09', 'Headache': 'MED-01', 'Nausea or dizziness': 'MED-02', 'Cough': 'MED-06',
+  'Very tired': 'WB-09', 'Feeling low or anxious': 'WB-01', 'Would like to talk to someone': 'WB-01',
+};
+const SYM_ESC = { 3: 'Start onboard care with the Crew Medical Officer using the medical checklist.', 2: 'Inform the Crew Medical Officer today.' };
 const DECISION_ACTS = { done: 'Did the steps', recheck: 'Measured again', crew: 'Told the crew', watch: 'Will keep watching', confirm: 'Confirmed the reading' };
 
 const Insight = (() => {
@@ -158,8 +170,11 @@ const Insight = (() => {
   function confirm(id) { const s = Engine.series(id); if (!s.length) return; const day = state.days[s[s.length - 1].md]; day.ok = day.ok || {}; day.ok[id] = new Date().toISOString(); }
 
   /* ---------- findings ---------- */
-  function protocol(text) {
-    try { const h = KBSearch.search(text, 1)[0]; if (!h) return null; return { id: 'KB-' + h.e.id, title: h.e.title, esc: h.e.esc, steps: h.e.steps || [], src: (h.e.src || []).map((k) => SRC[k]).filter(Boolean) }; } catch (e) { return null; }
+  /** The protocol for a finding, by key first, then indicator and direction, then indicator. */
+  function protocolOf(...keys) {
+    const id = keys.map((k) => k && PROTOCOL_FOR[k]).find(Boolean) || (keys.some((k) => /^Moderate pain/.test(k || '')) ? 'MED-21' : null); if (!id) return null;
+    const e = KB.find((x) => x.id === id); if (!e) return null;
+    return { id: 'KB-' + e.id, title: e.title, esc: e.esc, steps: e.steps || [], src: (e.src || []).map((k) => SRC[k]).filter(Boolean) };
   }
   function when(level, esc) {
     if (level >= 3) return `Now. ${esc.text} Press Help at once if you feel faint, confused, short of breath or have chest pain.`;
@@ -171,16 +186,17 @@ const Insight = (() => {
   const sources = (id) => (typeof EVIDENCE !== 'undefined' && EVIDENCE[id] ? EVIDENCE[id] : []);
 
   /** Everything NovaCare has to say today, most serious first. */
-  function findings() {
+  function findings(opts = {}) {
     if (!state || !state.days) return [];
-    const c = context(); const adv = Engine.advisories(); const out = [];
+    const lite = !!opts.lite; const protocol = lite ? () => null : protocolOf;
+    const c = context(); const adv = Engine.advisories().filter((a) => a.key !== 'status'); const out = [];
     const ctxFor = (id) => c.notes.filter((n) => n.ids.includes(id)).map((n) => n.text);
     adv.forEach((a) => {
       const id = IND[a.ind] ? a.ind : null;
       out.push({ key: a.key, level: a.level, title: a.title, detail: a.detail, ind: id, kind: a.trend ? 'Trend' : a.key === 'status' ? 'Reported' : 'Reading',
         rule: a.key === 'status' ? 'N-STA-01' : a.trend ? `N-TRD-${a.key.replace(/^t-/, '').toUpperCase()}` : `N-THR-${a.key.toUpperCase()}`,
         cmp: id ? compareLine(id, c) : '', ctx: id ? ctxFor(id) : [], why: '', actions: a.actions, next: id ? nextChecks(id) : [],
-        when: when(a.level, a.esc), who: a.esc.who, protocol: protocol(`${a.title} ${id ? IND[id].short : ''}`), sources: id ? sources(id) : [] });
+        when: when(a.level, a.esc), who: a.esc.who, protocol: protocol(a.key, id && `${id}:${Engine.status(id).dir}`, id), sources: id ? sources(id) : [] });
     });
     PERSONAL_IDS.forEach((id) => {
       if (adv.some((a) => a.ind === id)) return;
@@ -188,7 +204,25 @@ const Insight = (() => {
       const t = (PERSONAL_TEXT[id] || {})[x.dir]; if (!t) return;
       out.push({ key: 'p-' + id, level: 1, title: t.title, detail: `${IND[id].short}: ${num(id, x.st.v)} ${IND[id].unit} (MD ${x.st.md}) · your baseline ${num(id, x.base.v)}`, ind: id, kind: 'Personal',
         rule: `N-PER-${id.toUpperCase()}`, cmp: compareLine(id, c), ctx: ctxFor(id), why: t.why, actions: t.actions, next: nextChecks(id),
-        when: when(1, {}), who: whoFor(1), protocol: protocol(`${t.title} ${IND[id].short}`), sources: sources(id) });
+        when: when(1, {}), who: whoFor(1), protocol: protocol(`${id}:${x.dir}`, id), sources: sources(id) });
+    });
+    // symptoms from today's latest "How do you feel": one finding each, followed until they stop being reported
+    const last = typeof Status !== 'undefined' ? Status.last() : null;
+    if (last && last.md === state.md && last.level) {
+      Status.evaluate(last.answers).findings.forEach((x) => {
+        const slug = fold(x.text).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (out.some((f) => f.key === 'sym-' + slug)) return;
+        out.push({ key: 'sym-' + slug, level: x.level, title: x.text, detail: `You reported it at ${new Date(last.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} on MD ${last.md}`, ind: IND[x.ind] ? x.ind : null, kind: 'Reported',
+          rule: `N-SYM-${slug.toUpperCase().slice(0, 18)}`, cmp: '', ctx: [], why: '', actions: [x.act], next: IND[x.ind] ? [x.ind].filter((id) => !Engine.status(id).loggedToday) : [],
+          when: when(x.level, { text: SYM_ESC[x.level] || '' }), who: whoFor(x.level), protocol: protocol(x.text), sources: [], symptom: x.text });
+      });
+    }
+    // early warnings: a trend that will leave the safe range soon, while there is time to act
+    if (typeof Predict !== 'undefined') Predict.all().filter((p) => p.level > 0 && !out.some((f) => f.ind === p.ind)).forEach((p) => {
+      out.push({ key: 'w-' + p.key, level: 1, title: `Early warning: ${p.title.toLowerCase()}`, detail: p.sum, ind: IND[p.ind] ? p.ind : null, kind: 'Early warning',
+        rule: `N-PRD-${p.key.replace(/^p-/, '').toUpperCase()}`, cmp: `Now ${p.now} → ${p.future}${p.when ? ` in about ${Math.max(1, Math.round(p.when))} day${Math.round(p.when) === 1 ? '' : 's'}` : ''}.`, ctx: [],
+        why: `${p.text} ${p.basis}`, actions: p.act, next: [], when: 'Not yet. Acting now is how it stays a warning. Tell the Crew Medical Officer if it keeps moving the same way.', who: 'Self-care',
+        protocol: protocol(p.key, p.ind), sources: IND[p.ind] ? sources(p.ind) : [] });
     });
     Object.keys(JUMP).forEach((id) => {
       const u = unconfirmed(id); if (!u) return;
@@ -336,18 +370,19 @@ const Care = (() => {
           status: 'new', recheckMd: state.md + (RECHECK_DAYS[f.level] ?? 1), seenMd: state.md, peak: f.level, events: [{ md: state.md, at, text: 'Opened', level: f.level }] };
         cases[c.id] = c; changed = true;
       } else {
-        if (c.seenMd !== state.md || c.level !== f.level) { if (c.level !== f.level) c.events.push({ md: state.md, at, text: f.level > c.level ? 'Got worse' : 'Improving', level: f.level }); c.level = f.level; c.peak = Math.max(c.peak, f.level); c.seenMd = state.md; c.title = f.title; changed = true; }
+        c.seenAt = at; if (c.seenMd !== state.md || c.level !== f.level) { if (c.level !== f.level) c.events.push({ md: state.md, at, text: f.level > c.level ? 'Got worse' : 'Improving', level: f.level }); c.level = f.level; c.peak = Math.max(c.peak, f.level); c.seenMd = state.md; c.title = f.title; changed = true; }
         if (c.status === 'review' || c.status === 'clearing') { c.status = 'following'; c.events.push({ md: state.md, at, text: 'Came back', level: f.level }); changed = true; }
       }
     });
     Object.values(cases).forEach((c) => {
       if (c.status === 'discharged' || now.some((f) => f.key === c.key)) return;
       // the finding is gone: count readings back in range since it was last seen
-      const clear = c.ind && IND[c.ind] ? Engine.series(c.ind).filter((p) => p.md > c.seenMd && inRange(c.ind, p.v)).length : Math.max(0, state.md - c.seenMd);
+      const clear = c.key.startsWith('sym-') ? (typeof Status !== 'undefined' ? Status.list().filter((u) => u.at > (c.seenAt || c.openedAt) && !(u.findings || []).includes(c.title)).length : 0)
+        : c.ind && IND[c.ind] ? Engine.series(c.ind).filter((p) => p.md > c.seenMd && inRange(c.ind, p.v)).length : Math.max(0, state.md - c.seenMd);
       if (clear !== c.clear) { c.clear = clear; changed = true; }
       if (clear >= CARE_CLEAR) {
-        if (c.peak >= 2) { if (c.status !== 'review') { c.status = 'review'; c.events.push({ md: state.md, at, text: 'Back in range — ready for discharge', level: 0 }); changed = true; } }
-        else { c.status = 'discharged'; c.dischargedAt = at; c.dischargedMd = state.md; c.by = 'NovaCare (back in your range on 2 days)'; c.events.push({ md: state.md, at, text: 'Discharged', level: 0 }); changed = true; }
+        if (c.peak >= 2) { if (c.status !== 'review') { c.status = 'review'; c.events.push({ md: state.md, at, text: c.key.startsWith('sym-') ? 'No longer reported — ready for discharge' : 'Back in range — ready for discharge', level: 0 }); changed = true; } }
+        else { c.status = 'discharged'; c.dischargedAt = at; c.dischargedMd = state.md; c.by = c.key.startsWith('sym-') ? `NovaCare (not reported in ${CARE_CLEAR} updates)` : 'NovaCare (back in your range on 2 days)'; c.events.push({ md: state.md, at, text: 'Discharged', level: 0 }); changed = true; }
       } else if (clear >= 1 && c.status !== 'clearing') { c.status = 'clearing'; changed = true; } // no new reading is not an improvement
     });
     // discharges the Crew Medical Officer signed for me on their own device
@@ -369,13 +404,15 @@ const Care = (() => {
   function seen(id) { const c = get(id); if (c && c.status === 'new') { c.status = 'following'; Engine.save(); } }
   function act(id, text) { const c = get(id); if (!c) return; if (c.status === 'new') c.status = 'following'; c.events.push({ md: state.md, at: new Date().toISOString(), text, level: c.level }); Engine.save(); }
   /** Is a re-check due now? */
-  const due = (c) => c.status !== 'discharged' && c.status !== 'review' && state.md >= c.recheckMd && c.ind && IND[c.ind] && !Engine.status(c.ind).loggedToday;
+  const due = (c) => c.status !== 'discharged' && c.status !== 'review' && !c.key.startsWith('sym-') && state.md >= c.recheckMd && c.ind && IND[c.ind] && !Engine.status(c.ind).loggedToday;
   function measured(id) { const c = get(id); if (!c) return; c.recheckMd = state.md + (RECHECK_DAYS[c.level] || 1); Engine.save(); }
   function discharge(id, by) { const c = get(id); if (!c) return; c.status = 'discharged'; c.dischargedAt = new Date().toISOString(); c.dischargedMd = state.md; c.by = by; c.events.push({ md: state.md, at: c.dischargedAt, text: `Discharged by ${by}`, level: 0 }); Engine.save(); }
   /** One line: where this case stands. */
   function stage(c) {
     if (c.status === 'discharged') return { label: 'Discharged', cls: 'l0', text: `Discharged MD ${c.dischargedMd} · ${c.by}` };
-    if (c.status === 'review') return { label: 'Ready for discharge', cls: 'l0', text: 'Back in your range on 2 days. The Crew Medical Officer confirms the discharge.' };
+    if (c.status === 'review') return { label: 'Ready for discharge', cls: 'l0', text: `${c.key.startsWith('sym-') ? `Not reported in ${CARE_CLEAR} updates` : 'Back in your range on 2 days'}. The Crew Medical Officer confirms the discharge.` };
+    if (c.key.startsWith('sym-')) return c.status === 'clearing' ? { label: 'Improving', cls: 'l0', text: `Not reported in ${c.clear || 0} of the ${CARE_CLEAR} updates needed for discharge.` }
+      : { label: c.status === 'new' ? 'New' : 'Following', cls: lc(c.level), text: `Next check: “How do you feel” in about ${typeof Status !== 'undefined' ? Status.every() : 8} h. It closes after ${CARE_CLEAR} updates without it.` };
     if (c.status === 'clearing') return { label: 'Improving', cls: 'l0', text: `Back in range ${c.clear || 0} of ${CARE_CLEAR} times needed for discharge.` };
     const when = c.recheckMd <= state.md ? 'today' : c.recheckMd === state.md + 1 ? 'tomorrow' : `MD ${c.recheckMd}`;
     return { label: c.status === 'new' ? 'New' : 'Following', cls: lc(c.level), text: c.ind && IND[c.ind] ? `Next check ${when}: ${IND[c.ind].short.toLowerCase()}.` : `Next check ${when}.` };

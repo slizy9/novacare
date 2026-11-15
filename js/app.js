@@ -936,7 +936,7 @@ const QUICK_FEEL = ['mood', 'stress', 'sleep'];
 const QUICK_VITALS = ['sys', 'dia', 'hr', 'spo2', 'temp'];
 function startCheckin() {
   const day = Engine.today(); const draft = {};
-  const more = INDICATORS.map((i) => i.id).filter((id) => !QUICK_FEEL.includes(id) && !QUICK_VITALS.includes(id) && !SHIP_READINGS.includes(id) && (Engine.status(id).due || day.vals[id] != null));
+  const more = INDICATORS.map((i) => i.id).filter((id) => !QUICK_FEEL.includes(id) && !QUICK_VITALS.includes(id) && !SHIP_READINGS.includes(id) && !IND[id].exam && (Engine.status(id).due || day.vals[id] != null));
   [...QUICK_FEEL, ...QUICK_VITALS, ...more].forEach((id) => { if (day.vals[id] != null) draft[id] = day.vals[id]; });
   ui.modal = { type: 'quick', draft, more, count: 0 };
   renderModal();
@@ -1238,7 +1238,7 @@ const actions = {
     if (!stepValid(m)) return;
     const day = Engine.today();
     const ids = m.steps[m.i];
-    ids.forEach((id) => { day.vals[id] = +(+m.draft[id]).toFixed(IND[id].dec); Insight.setSrc(day, id, 'self'); if (day.ok) delete day.ok[id]; m.count++; });
+    ids.forEach((id) => { day.vals[id] = +(+m.draft[id]).toFixed(IND[id].dec); Insight.setSrc(day, id, IND[id].exam ? 'exam' : 'self'); if (day.ok) delete day.ok[id]; m.count++; });
     Engine.save(); Care.sync(); Reminders.tick();
     if (welfareCheck(ids, m.i >= m.steps.length - 1 && m.guided ? { type: 'done', count: m.count } : null)) return;
     advanceMeasure(m);

@@ -47,7 +47,8 @@ const Coach = (() => {
     if (md > 3) areas.push({ id: 'checkin', label: 'Daily check-in', count: true, cur: ci, prev: md > 10 ? ciPrev : null, goal: 6, better: 1,
       gap: Math.max(0, (6 - ci) / 6), delta: md > 10 ? ci - ciPrev : null, improving: md > 10 && ci > ciPrev, worse: md > 10 && ci < ciPrev, progress: Math.min(1, ci / 6),
       tip: 'Check in as soon as you wake up — it takes about a minute.', why: 'Gaps in check-ins hide problems until they are bigger.', done: doneOn(md, 'checkin'), streak: doneCount('checkin') });
-    const focus = areas.filter((a) => a.gap > 0.04).sort((x, y) => y.gap - x.gap).slice(0, 2);
+    const inCase = typeof Care !== 'undefined' && !state.sim ? new Set(Care.open().map((c) => c.ind)) : new Set();
+    const focus = areas.filter((a) => a.gap > 0.04 || inCase.has(a.id)).sort((x, y) => inCase.has(y.id) - inCase.has(x.id) || y.gap - x.gap).slice(0, 2);
     const wins = areas.filter((a) => a.improving && !focus.includes(a)).slice(0, 3);
     return { areas, focus, wins, enough: areas.length >= 2 };
   }

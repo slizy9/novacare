@@ -426,6 +426,74 @@ const INDICATORS = [
       low: { title: 'CO₂', actions: [] },
     },
   },
+  {
+    id: 'ecg', name: 'ECG rhythm (exam)', short: 'ECG', unit: '/ 3', type: 'scale', exam: true,
+    step: 1, dec: 0, min: 0, max: 3, cadence: 30, def: 0,
+    scale: [
+      { v: 0, label: 'Normal rhythm' }, { v: 1, label: 'Minor change' },
+      { v: 2, label: 'Abnormal rhythm' }, { v: 3, label: 'Dangerous rhythm' },
+    ],
+    bands: () => ({ ok: [0, 0], warn: [0, 1], crit: [-INF, 2] }),
+    view: () => [0, 3],
+    how: ['Taken by the Crew Medical Officer with the onboard ECG, at rest, lying restrained.', 'Record what the officer reads: normal, a minor change (such as occasional extra beats), an abnormal rhythm, or a dangerous one.', 'Keep the printout or file with your record for the flight surgeon.'],
+    why: 'The heart adapts to weightlessness and its rhythm can change. An ECG finds problems that heart rate and blood pressure cannot show.',
+    space: 'Fluid shifts, lower blood volume and stress change the load on the heart. Rhythm problems in flight are rare but can be serious far from a hospital.',
+    advice: {
+      high: { title: 'ECG shows a change in rhythm', actions: ['Rest, stay restrained and avoid strenuous work until the officer reviews it.', 'Measure heart rate and blood pressure now.', 'The Crew Medical Officer sends the ECG to the flight surgeon at the next link.', 'Press Help at once for chest pain, fainting or a racing heart.'] },
+      low: { title: 'ECG', actions: [] },
+    },
+  },
+  {
+    id: 'urine', name: 'Urine dipstick (exam)', short: 'Urine test', unit: '/ 3', type: 'scale', exam: true,
+    step: 1, dec: 0, min: 0, max: 3, cadence: 14, def: 0,
+    scale: [
+      { v: 0, label: 'Normal' }, { v: 1, label: 'Trace' },
+      { v: 2, label: 'Positive' }, { v: 3, label: 'Strongly positive' },
+    ],
+    bands: () => ({ ok: [0, 0], warn: [0, 1], crit: [-INF, 2] }),
+    view: () => [0, 3],
+    how: ['Use a fresh dipstick from the medical kit on a fresh sample.', 'Read it at the time shown on the pack: blood, protein, leukocytes, nitrites, glucose.', 'Record the worst result: normal, trace, positive or strongly positive.'],
+    why: 'A dipstick finds early signs of kidney stones, urinary infection and dehydration — all more likely in space.',
+    space: 'Bone loss releases calcium into the urine, and lower fluid intake concentrates it. Kidney stones are a known spaceflight risk and very painful far from care.',
+    advice: {
+      high: { title: 'Urine test is positive', actions: ['Drink more: at least 2.5 L today, spread over the day.', 'Repeat the test tomorrow morning on the first sample.', 'Tell the Crew Medical Officer about any pain in the side or back, burning or blood in the urine.'] },
+      low: { title: 'Urine test', actions: [] },
+    },
+  },
+  {
+    id: 'ultra', name: 'Ultrasound (exam)', short: 'Ultrasound', unit: '/ 3', type: 'scale', exam: true,
+    step: 1, dec: 0, min: 0, max: 3, cadence: 30, def: 0,
+    scale: [
+      { v: 0, label: 'Normal' }, { v: 1, label: 'Minor finding' },
+      { v: 2, label: 'Needs follow-up' }, { v: 3, label: 'Urgent finding' },
+    ],
+    bands: () => ({ ok: [0, 0], warn: [0, 1], crit: [-INF, 2] }),
+    view: () => [0, 3],
+    how: ['Done by the Crew Medical Officer with the onboard ultrasound, guided by ground or the checklist.', 'Record the result the officer gives: normal, minor finding, needs follow-up, or urgent.', 'Keep the images with your record for the flight surgeon.'],
+    why: 'Ultrasound is the only imaging on board. It checks the eyes, heart, kidneys, bladder and veins.',
+    space: 'It is used in flight to look for eye changes (SANS), clots in the neck veins, kidney stones and fluid where it should not be.',
+    advice: {
+      high: { title: 'Ultrasound found something to follow', actions: ['Follow what the Crew Medical Officer and flight surgeon decide.', 'Repeat the scan when they ask.', 'Press Help for new pain, swelling or breathlessness.'] },
+      low: { title: 'Ultrasound', actions: [] },
+    },
+  },
+  {
+    id: 'pexam', name: 'Physical exam by the Crew Medical Officer', short: 'CMO exam', unit: '/ 3', type: 'scale', exam: true,
+    step: 1, dec: 0, min: 0, max: 3, cadence: 30, def: 0,
+    scale: [
+      { v: 0, label: 'Normal' }, { v: 1, label: 'Minor finding' },
+      { v: 2, label: 'Needs follow-up' }, { v: 3, label: 'Urgent finding' },
+    ],
+    bands: () => ({ ok: [0, 0], warn: [0, 1], crit: [-INF, 2] }),
+    view: () => [0, 3],
+    how: ['The Crew Medical Officer examines you with the medical checklist.', 'Record the result: normal, minor finding, needs follow-up, or urgent.', 'Add any detail as a note in the mission log.'],
+    why: 'A regular exam by a trained crewmate catches what self-measurements miss.',
+    space: 'Far from Earth, the Crew Medical Officer is the first and often only clinician. A record of each exam lets the flight surgeon follow changes.',
+    advice: {
+      high: { title: 'The exam found something to follow', actions: ['Follow the plan the Crew Medical Officer gave you.', 'Measure again what they asked you to watch.', 'Tell them if anything gets worse.'] },
+      low: { title: 'CMO exam', actions: [] },
+    },
+  },
 ];
 
 const IND = Object.fromEntries(INDICATORS.map((i) => [i.id, i]));
@@ -433,7 +501,7 @@ const IND = Object.fromEntries(INDICATORS.map((i) => [i.id, i]));
 /* Steps of the guided check-in (blood pressure is one cuff reading, two numbers). */
 const CHECKIN_GROUPS = [
   ['sys', 'dia'], ['hr'], ['spo2'], ['temp'], ['glu'], ['sleep'], ['mood'], ['stress'],
-  ['water'], ['exercise'], ['mass'], ['vision'], ['rad'], ['co2'],
+  ['water'], ['exercise'], ['mass'], ['vision'], ['rad'], ['co2'], ['ecg'], ['urine'], ['ultra'], ['pexam'],
 ];
 
 const SYSTEMS = [
@@ -448,7 +516,7 @@ const SYSTEMS = [
     space: 'Fluid shifting toward the head raises pressure at the back of the eye. Spaceflight Associated Neuro-ocular Syndrome (SANS) can swell the optic disc and blur near vision.',
   },
   {
-    id: 'heart', name: 'Heart & circulation', indicators: ['sys', 'dia', 'hr'], hazards: ['gravity', 'radiation'],
+    id: 'heart', name: 'Heart & circulation', indicators: ['sys', 'dia', 'hr', 'ecg'], hazards: ['gravity', 'radiation'],
     fn: 'Pumps blood to deliver oxygen and nutrients and remove waste.',
     space: 'With no gravity to work against, the heart deconditions and blood volume falls. Radiation may damage vessel linings. Standing in gravity again can cause fainting.',
   },
@@ -458,7 +526,7 @@ const SYSTEMS = [
     space: 'You depend on life support for every breath. CO₂ build-up, trace contaminants, dust and pressure changes all act on the lungs first.',
   },
   {
-    id: 'metabolic', name: 'Metabolism & nutrition', indicators: ['glu', 'water', 'mass'], hazards: ['distance', 'gravity'],
+    id: 'metabolic', name: 'Metabolism & nutrition', indicators: ['glu', 'water', 'mass', 'urine'], hazards: ['distance', 'gravity'],
     fn: 'Turns food and water into energy, regulates blood sugar and filters waste through the kidneys.',
     space: 'The food supply is fixed and cannot be restocked. Reduced appetite, blunted thirst and inactivity lead to weight loss, dehydration, kidney stones and poorer glucose control.',
   },
