@@ -5,7 +5,7 @@
    Other missions this person belongs to are parked in state.archive[code], so everything still
    saves and syncs as one record. The active mission code is the account's crew code. */
 const Missions = (() => {
-  const FIELDS = ['env', 'md', 'days', 'missionDays', 'demo', 'missionName', 'startDate'];
+  const FIELDS = ['env', 'md', 'days', 'missionDays', 'demo', 'missionName', 'startDate', 'log'];
   const code = () => Auth.user().crew;
   const norm = (c) => String(c || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
   // start = the mission's first day (a joined mission starts when its creator created it, so the crew shares the same day)

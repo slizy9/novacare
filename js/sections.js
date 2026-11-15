@@ -45,6 +45,25 @@ function vitalCell(m, id, label) {
   return `<div class="${lc(l.level == null ? -1 : l.level)}"><dt>${label}</dt><dd>${mark(l.v == null ? -1 : l.level)}<span class="num">${val}</span>${l.v != null && id !== 'sys' ? `<small>${ind.unit}</small>` : ''}</dd></div>`;
 }
 
+/* A crewmate's medical history: allergies first (they matter most in an emergency), then
+   conditions, medication and blood type. `full` adds notes and the baseline. */
+function medHistoryHtml(m, full) {
+  const p = m.med;
+  if (!p || Medical.empty(p)) return `<div class="crew-med none">${icon('care')}<span>${m.me ? 'You have not filled in' : `${esc(firstName(m))} has not shared`} a medical history</span></div>`;
+  const al = Medical.allergyNames(p);
+  const line = (label, body) => `<div class="cm-row"><dt>${label}</dt><dd>${body}</dd></div>`;
+  return `<div class="crew-med">
+    <p class="cm-h">${icon('care')}<b>Medical history</b>${p.blood ? `<span class="cm-blood" title="Blood type">${icon('drop')}${esc(p.blood)}</span>` : ''}</p>
+    <dl>
+      ${line('Allergies', al.length ? al.map((a) => `<span class="alg-chip">${esc(a)}</span>`).join(' ') : '<span class="muted">None known</span>')}
+      ${line('Conditions', p.conditions.length ? p.conditions.map(esc).join('<br>') : '<span class="muted">None</span>')}
+      ${line('Medication', p.meds.length ? p.meds.map(esc).join('<br>') : '<span class="muted">None</span>')}
+      ${full && p.notes ? line('Notes', esc(p.notes)) : ''}
+      ${full && Object.keys(p.baseline || {}).length ? line('Pre-flight baseline', [p.baseline.hr ? `HR ${p.baseline.hr}` : '', p.baseline.sys ? `BP ${p.baseline.sys}/${p.baseline.dia || '—'}` : '', p.baseline.mass ? `${p.baseline.mass} kg` : ''].filter(Boolean).join(' · ')) : ''}
+    </dl>
+    ${full && p.updatedAt ? `<p class="muted small">Updated ${timeAgo(p.updatedAt)}</p>` : ''}</div>`;
+}
+
 /* ---------- Crewmates ---------- */
 function viewCrew() {
   const all = Crew.members(); const mates = all.map((m, i) => ({ m, i })).filter((x) => !x.m.me);
@@ -63,6 +82,7 @@ function viewCrew() {
       <div class="crew-score"><div><b class="num" data-count="${m.readiness ?? ''}">${m.readiness ?? '—'}</b><span>readiness</span></div>${miniTrend(m, i)}</div>
       <p class="crew-concern ${lc(top ? top.level : 0)}"><span class="dot"></span><span>${top ? esc(top.title) : 'No active concerns'}</span></p>
       <dl class="crew-vitals">${KEY_VITALS.slice(0, 3).map(([id, l]) => vitalCell(m, id, l)).join('')}</dl>
+      ${medHistoryHtml(m, false)}
       <p class="crew-meta">${m.checkedInToday ? `${icon('check')}Checked in today` : `${icon('clock')}Check-in pending`}${m.cached ? ` · ${timeAgo(m.updatedAt)}` : ''}${m.sim ? ' · <span class="tag sm" title="Synthetic demo astronaut">Simulated</span>' : ''}</p>
       <footer><button class="btn ghost sm" data-act="mate" data-id="${esc(m.id)}">View details</button>
         <button class="btn sos sm" data-act="emergency" data-id="${esc(m.id)}">${icon('siren')}Emergency</button></footer>
@@ -79,6 +99,7 @@ function mateHtml(id) {
     <header>${avatar(m, i)}<div class="grow"><h2>${esc(m.name)}</h2><p class="muted small">${esc(m.role || '')} · MD ${m.md}${m.sim ? ' · simulated' : ''}</p></div>${verdictPill(v)}<button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b">
       <div class="fields">
+        <section>${medHistoryHtml(m, true)}</section>
         <section><h3>Body systems</h3><ul class="sys-mini">${SYSTEMS.map((s) => `<li class="${lc(m.systems[s.id])}">${mark(m.systems[s.id])}${s.name}<span>${levelText(m.systems[s.id])}</span></li>`).join('')}</ul></section>
         <section><h3>Advisories</h3>${m.advisories.length ? `<ul class="adv-mini">${m.advisories.map((a) => `<li class="${lc(a.level)}">${mark(a.level)}<div><b>${esc(a.title)}</b><small>${esc(a.detail)}</small></div><span class="pill ${lc(a.level)}">${esc(a.who)}</span></li>`).join('')}</ul>` : '<p class="muted">Nothing active.</p>'}</section>
       </div>

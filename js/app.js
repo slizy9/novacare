@@ -190,7 +190,6 @@ function viewLobby() {
   const stat = (n, l) => `<div class="hstat"><b class="num">${n}</b><span>${l}</span></div>`;
   const hero = `<section class="card hero lobby-hero">
       <div class="hero-main"><p class="lobby-clock" id="lobby-clock">${clockHtml()}</p>
-        <p class="eyebrow">${has ? esc(cur.name) : locked ? 'Welcome aboard' : 'Personal space'} · ${esc(ENVIRONMENTS[cur.env].short)}</p>
         <h1 class="hero-title">${greeting()}${first ? `, <em>${esc(first)}.</em>` : '.'}</h1>
         <p class="lobby-lead">${lead}</p>
         ${choice}
@@ -251,11 +250,11 @@ function viewLobby() {
 /* ---------- Mission tab: "Status" and "Missions" (switch, create, join, browse) ---------- */
 function missionTabs() {
   if (!Missions.has()) return '';
-  const on = ui.missionTab === 'missions' ? 'missions' : 'status';
-  const tabs = [['status', 'Mission status', 'bars'], ['missions', 'Missions', 'layers']];
+  const on = ['missions', 'log'].includes(ui.missionTab) ? ui.missionTab : 'status';
+  const tabs = [['status', 'Mission status', 'bars'], ['log', 'Log', 'file'], ['missions', 'Missions', 'layers']];
   return `<nav class="subnav" aria-label="Mission sections"><span class="ind" aria-hidden="true"></span>${tabs.map(([v, l, ic]) => `<button class="${on === v ? 'on' : ''}" data-act="missiontab" data-v="${v}" ${on === v ? 'aria-current="page"' : ''}>${icon(ic)}${l}</button>`).join('')}</nav>`;
 }
-function missionPage() { return ui.missionTab === 'missions' || !Missions.has() ? viewMissions() : viewMission(); }
+function missionPage() { return ui.missionTab === 'missions' || !Missions.has() ? viewMissions() : ui.missionTab === 'log' ? viewLog() : viewMission(); }
 
 function viewMissions() {
   const all = Missions.list(); const u = Auth.user();
@@ -602,29 +601,53 @@ function detailHtml(id) {
     </div></div>`;
 }
 
+/* Settings: what an astronaut on a mission actually needs, in the order they need it.
+   Every row says its current state; nothing here can erase data without a clear warning. */
 function settingsHtml() {
-  return `<div class="sheet narrow" role="dialog" aria-modal="true" aria-label="Settings">
-    <header><div><h2>Mission profile</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+  const u = Auth.user(); const has = Missions.has(); const cur = Missions.current(); const env = Engine.env();
+  const perm = Reminders.permission(); const notif = Reminders.on();
+  const prof = Medical.mine(); const al = Medical.allergyNames(prof);
+  const st = Sync.status(); const [sc, , sl, stip] = SYNC_UI[st] || SYNC_UI.local;
+  const start = state.startDate ? new Date(state.startDate + 'T00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
+  const row = (label, body, hint = '') => `<div class="set-row"><div class="set-l"><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</div><div class="set-v">${body}</div></div>`;
+  const sec = (ic, title, body) => `<section class="set-sec"><h3>${icon(ic)}${title}</h3>${body}</section>`;
+  return `<div class="sheet narrow settings" role="dialog" aria-modal="true" aria-label="Settings">
+    <header><div><p class="kicker">Settings</p><h2>${esc(state.name || u.name)}</h2><p class="sub">${esc(u.role)}${has ? ` · ${esc(cur.name)} · MD ${state.md}` : ''}</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
-      <div class="field"><label for="name">Crew member name</label><input id="name" class="text" type="text" maxlength="40" value="${esc(state.name)}" placeholder="Your name"></div>
-      ${Missions.has() ? `<div class="field"><label>Mission</label>
-        <div class="field-row">
-          <div class="field"><label for="set-mname" class="sm">Mission name</label><input id="set-mname" class="text" type="text" maxlength="40" value="${esc(Missions.current().name)}"></div>
-          <div class="field"><label class="sm">Mission code</label><button class="codechip lg" data-act="copycode" data-code="${esc(Auth.user().crew)}" title="Copy the code">${icon('copy')}<span>${esc(Auth.user().crew)}</span></button></div>
-          <div class="field"><label for="set-role" class="sm">Your role</label><input id="set-role" class="text" type="text" value="${esc(Auth.user().role)}" readonly aria-readonly="true" title="Chosen when you created your account — it cannot be changed"></div>
-          <div class="field"><label for="set-every" class="sm">Status update every</label><select id="set-every" class="text">${STATUS_EVERY.map((h) => `<option value="${h}" ${Status.every() === h ? 'selected' : ''}>${h} hours</option>`).join('')}</select></div>
-          <div class="field"><label for="set-len" class="sm">Planned length (days)</label><input id="set-len" class="text num" type="number" min="7" max="1200" value="${missionLength()}"></div>
-        </div>
-        <label class="remember"><input type="checkbox" id="set-sim" ${state.showSim !== false ? 'checked' : ''}> Show the simulated demo crew (3 synthetic astronauts, labelled “Simulated”)</label>
-        <p class="muted small">Crewmates who join with the same mission code share their status with each other. Create, join or switch missions from the Lobby.</p></div>` : `<div class="field"><label>Mission</label><p class="muted small">You are not on a mission yet. Create or join one from the Lobby.</p><div class="field-row"><div class="field"><label for="set-role" class="sm">Your role</label><input id="set-role" class="text" type="text" value="${esc(Auth.user().role)}" readonly aria-readonly="true" title="Chosen when you created your account — it cannot be changed"></div></div></div>`}
-      <div class="field"><label>Where are you?</label>
-        <div class="envs">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<button class="${state.env === k ? 'on' : ''}" data-act="env" data-id="${k}"><b>${e.name}</b><small>${e.gravity} · ${e.rad} mSv/day · ${e.comm}</small></button>`).join('')}</div>
-        <p class="muted small">The environment changes radiation thresholds, the exercise prescription and how NOVACARE tells you to escalate.</p></div>
-      <div class="field"><label>Share with your flight surgeon</label>
-        <div class="btnrow"><button class="btn ghost" data-act="report">Download health report</button><button class="btn ghost" data-act="export">Export raw data (JSON)</button></div></div>
-      <div class="field"><label>Mission data</label>
-        <div class="btnrow"><button class="btn ghost" data-act="demo">Load demo mission (33 days)</button><button class="btn ghost danger" data-act="reset">Start a new mission</button></div>
-        <p class="muted small">Data stays on this device (browser storage). NOVACARE works fully offline — no link to Earth needed.</p></div>
+      ${sec('siren', 'Emergencies', `
+        ${row('Alerts reach your crew', alertReach() === 'cloud' ? '<span class="set-ok l0"><span class="dot"></span>Yes</span>' : `<span class="set-ok l2"><span class="dot"></span>No</span>`,
+          alertReach() === 'cloud' ? `Everyone on ${esc(cur.name)} gets your calls for help.` : esc(alertSentMsg('alert')))}
+        ${row('Notifications', perm === 'unsupported' ? '<span class="muted small">Not available</span>' : perm === 'denied' ? '<span class="set-ok l2">Blocked in the browser</span>'
+          : notif ? '<button class="btn ghost sm" data-act="remoff">Turn off</button>' : '<button class="btn primary sm" data-act="remon">Turn on</button>',
+          notif ? 'On — emergencies sound and show even with NovaCare in the background.' : 'Turn on so a crewmate’s emergency reaches you with the app closed.')}
+        ${row('Test the alarm', '<button class="btn ghost sm" data-act="testalarm">Play</button>', 'Check the sound and vibration of an emergency.')}`)}
+      ${sec('care', 'Your medical profile', `
+        ${row('Allergies', al.length ? al.map((x) => `<span class="alg-chip">${esc(x)}</span>`).join(' ') : '<span class="set-ok l1"><span class="dot"></span>None recorded</span>', 'Your crew sees this in an emergency.')}
+        ${row('Blood type · medication · conditions', `<button class="btn ${Medical.empty(prof) ? 'primary' : 'ghost'} sm" data-act="sub" data-v="medical">${Medical.empty(prof) ? 'Fill in' : 'Edit'}</button>`,
+          Medical.empty(prof) ? 'Empty — one minute, and it can save your life.' : [prof.blood, prof.meds.length ? `${prof.meds.length} medication${prof.meds.length > 1 ? 's' : ''}` : '', prof.conditions.length ? `${prof.conditions.length} condition${prof.conditions.length > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ') || 'Saved')}`)}
+      ${sec('rocket', 'Mission', has ? `
+        ${row('Mission name', `<input id="set-mname" class="text" type="text" maxlength="40" value="${esc(cur.name)}" aria-label="Mission name">`)}
+        ${row('Code for your crew', `<button class="codechip" data-act="copycode" data-code="${esc(u.crew)}" title="Copy the code">${icon('copy')}<span>${esc(u.crew)}</span></button>`, 'Crewmates join with this code.')}
+        ${row('Mission day', `<b class="num">MD ${state.md}</b> <span class="muted small">of ${missionLength()}</span>`, `Started ${start}. A new day starts at midnight.`)}
+        ${row('Planned length', `<input id="set-len" class="text num sm" type="number" min="7" max="1200" value="${missionLength()}" aria-label="Planned length in days"> <span class="muted small">days</span>`)}
+        ${row('Location', `<select id="set-env" class="text" aria-label="Location">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<option value="${k}" ${state.env === k ? 'selected' : ''}>${esc(e.short)}</option>`).join('')}</select>`,
+          `${esc(env.gravity)} · ${env.rad} mSv/day · ${esc(env.comm)}`)}
+        ${row('Simulated demo crew', `<label class="switch"><input type="checkbox" id="set-sim" ${state.showSim !== false ? 'checked' : ''}><span></span></label>`, 'Three synthetic astronauts, labelled “Simulated”. Turn off for a real mission.')}
+        ${row('Leave this mission', `<button class="btn ghost danger sm" data-act="leavemission" data-code="${esc(u.crew)}">Leave</button>`)}`
+        : `<p class="muted small">You are not on a mission. <button class="link" data-act="missiontab" data-v="missions">Create or join one</button>.</p>`)}
+      ${sec('checks', 'Check-ins', `
+        ${row('“How do you feel?” every', `<select id="set-every" class="text" aria-label="How often">${STATUS_EVERY.map((h) => `<option value="${h}" ${Status.every() === h ? 'selected' : ''}>${h} hours</option>`).join('')}</select>`, 'Only after your daily check-in.')}`)}
+      ${sec('cloud', 'Data & sync', `
+        ${row('Sync', `<span class="set-ok ${sc}"><span class="dot"></span>${esc(sl)}</span> ${Auth.cloud() ? '<button class="btn ghost sm" data-act="syncnow">Sync now</button>' : ''}`, esc(stip))}
+        ${row('For your flight surgeon', '<button class="btn ghost sm" data-act="report">Health report</button> <button class="btn ghost sm" data-act="export">Raw data</button>')}`)}
+      ${sec('user', 'Account & display', `
+        ${row('Your name', `<input id="name" class="text" type="text" maxlength="40" value="${esc(state.name || '')}" placeholder="Your name" aria-label="Your name">`)}
+        ${row('Role', `<span>${esc(u.role)}</span>`, 'Fixed when the account was created.')}
+        ${row('Dark mode', `<label class="switch"><input type="checkbox" id="set-dark" ${document.documentElement.dataset.theme === 'dark' ? 'checked' : ''}><span></span></label>`, 'Easier on the eyes during the sleep cycle.')}
+        ${row(u.guest ? 'Leave guest mode' : 'Sign out', `<button class="btn ghost sm" data-act="logout">${icon('logout')}${u.guest ? 'Exit' : 'Sign out'}</button>`)}`)}
+      <details class="set-sec demo"><summary>${icon('settings')}Training & demo</summary>
+        <p class="muted small">For demonstrations only. These replace the readings of the open mission.</p>
+        <div class="btnrow"><button class="btn ghost sm" data-act="demo">Load 33-day demo</button><button class="btn ghost danger sm" data-act="reset">Erase readings</button></div></details>
     </div></div>`;
 }
 
@@ -702,7 +725,7 @@ function renderAuth() {
   const top = $('#top'); document.body.classList.add('signed-out'); $('#nav').innerHTML = ''; $('#banner').innerHTML = '';
   top.innerHTML = `<div class="brand">${LOGO}<div><b>NovaCare</b></div></div>`;
   $('#app').innerHTML = authHtml();
-  ui.modal = null; renderModal();
+  ui.modal = null; renderModal(); renderSos(); renderTakeover();
   const first = $('#auth-form input'); if (first) first.focus();
 }
 
@@ -795,7 +818,18 @@ function render() {
   const subKey = ui.view; if (indPos.subFor !== subKey) { delete indPos.sub; indPos.subFor = subKey; }
   slideInd($('.subnav'), 'sub');
   if (entering) { window.scrollTo(0, 0); countUp(app); } else window.scrollTo(0, y);
-  renderModal();
+  const term = $('#term-out'); if (term) term.scrollTop = term.scrollHeight; // a terminal shows its latest line
+  renderModal(); renderSos(); renderTakeover();
+}
+/* "Ask crew for help" is always one tap away, on every page, above any task. */
+function renderSos() {
+  let b = $('#sos-fab');
+  if (!b) { b = document.createElement('button'); b.id = 'sos-fab'; b.dataset.act = 'help'; b.className = 'btn sos'; document.body.appendChild(b); }
+  const mine = Auth.user() && Crew.active().find((a) => fromMe(a) && HELP_TYPES[a.type]);
+  b.hidden = !Auth.user();
+  b.innerHTML = `${icon('siren')}<span>${mine ? 'Help requested' : 'Help'}</span>`;
+  b.setAttribute('aria-label', mine ? 'Help requested — open to send another request' : 'Ask your crew for help');
+  b.classList.toggle('sent', !!mine);
 }
 
 function renderModal() {
@@ -907,7 +941,13 @@ const actions = {
     if (HELP_TYPES[a.type]) { ui.modal = { type: 'emergency', step: 'pick', id: a.aboutId, name: a.aboutName, text: a.note || '', done: {}, fromHelp: a.id }; renderModal(); return; }
     ui.modal = { type: 'emergency', step: 'protocol', id: a.aboutId, name: a.aboutName, alertId: a.id, em: a.type, done: {} }; renderModal();
   },
-  help() { ui.modal = { type: 'help', urgent: true, why: [] }; renderModal(); },
+  help() { ui.helpBack = ui.modal && ui.modal.type !== 'help' ? ui.modal : null; ui.modal = { type: 'help', urgent: true, why: [] }; renderModal(); },
+  logfilter(d) { ui.logFilter = d.v; ui.logMsg = ''; render(); },
+  logexport() { download(`novacare-log-${Auth.user().crew || 'personal'}-MD${state.md}.txt`, MissionLog.toText(MissionLog.entries()), 'text/plain'); },
+  testalarm() { announceAlerts([{ id: 'test', type: 'assist', fromName: 'Alarm test', aboutName: '', note: 'This is how a call for help sounds' }]); },
+  syncnow() { Sync.run(); toast('Syncing with the NovaCare database…'); setTimeout(() => { if (ui.modal && ui.modal.type === 'settings') renderModal(); }, 2500); },
+  takego(d) { ackAlert(d.id); renderTakeover(); actions.emgopen({ id: d.id }); },
+  takeack(d) { ackAlert(d.id); renderTakeover(); toast('Seen — the alert stays in the red bar until it is resolved'); },
   helpurg(d) { ui.modal.urgent = d.v === '1'; renderModal(); },
   helpwhy(d) { const w = ui.modal.why; ui.modal.why = w.includes(d.v) ? w.filter((x) => x !== d.v) : [...w, d.v]; renderModal(); },
   emgdone(d) { if (!confirm('Mark this emergency as resolved for the whole crew?')) return; Crew.resolve(d.id); render(); toast('Emergency marked resolved'); },
@@ -1016,7 +1056,7 @@ const actions = {
     if (!reduceMotion()) { el.classList.add('out'); setTimeout(() => actions.close2(), 160); return; }
     actions.close2();
   },
-  close2() { const m = ui.modal; ui.modal = null; $('#modal').classList.remove('out'); render(); if (m && m.type === 'measure' && m.count) toast(`${m.count} reading${m.count > 1 ? 's' : ''} saved`); },
+  close2() { const m = ui.modal; ui.modal = m && m.type === 'help' && ui.helpBack ? ui.helpBack : null; ui.helpBack = null; $('#modal').classList.remove('out'); render(); if (m && m.type === 'measure' && m.count) toast(`${m.count} reading${m.count > 1 ? 's' : ''} saved`); },
   gostatus() { ui.modal = null; ui.view = 'personal'; ui.sub = 'overview'; ui.sys = null; render(); window.scrollTo(0, 0); },
   settings() { ui.modal = { type: 'settings' }; renderModal(); },
   range(d) { ui.range = +d.r; renderModal(); },
@@ -1055,7 +1095,7 @@ const actions = {
   report() { download(`novacare-report-MD${state.md}.txt`, Engine.report(), 'text/plain'); },
   export() { download(`novacare-data-MD${state.md}.json`, JSON.stringify(state, null, 2), 'application/json'); },
   demo() { if (confirm('Replace current data with the 33-day demo mission?')) { state = keepAccount(Engine.demo()); Engine.save(); ui.sys = null; ui.modal = null; render(); toast('Demo mission loaded'); } },
-  reset() { if (confirm('Erase all readings and start a new mission at day 1?')) { const e = state.env; state = keepAccount(Engine.fresh()); state.env = e; Engine.save(); ui.sys = null; ui.modal = null; render(); toast('New mission started — log your first check-in'); } },
+  reset() { if (confirm('Erase all your readings for this mission?\n\nThe mission, its day and your crew stay as they are. This cannot be undone.')) { const e = state.env, sd = state.startDate; state = keepAccount(Engine.fresh()); state.env = e; if (sd) state.startDate = sd; Engine.calendarDay(); Engine.save(); ui.sys = null; ui.modal = null; render(); toast('Readings erased — log a check-in when you are ready'); } },
 };
 
 /* Status update: next question, or save and show the result. Answers to questions that no longer apply are dropped. */
@@ -1070,7 +1110,7 @@ function statusNext() {
 
 /* Loading the demo or restarting replaces the readings, never the person's missions, profile or name. */
 function keepAccount(next) {
-  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays', 'updateEvery'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
+  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays', 'updateEvery', 'log'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
   if (state && state.name) next.name = state.name;
   return next;
 }
@@ -1125,10 +1165,11 @@ document.addEventListener('submit', (ev) => {
   }
   if (ev.target.id === 'help-form') {
     ev.preventDefault(); const m = ui.modal; const note = [m.why.join(', '), String(new FormData(ev.target).get('note') || '').trim()].filter(Boolean).join(' — ');
-    const me = Crew.members()[0]; const a = Crew.raise(me, m.urgent ? 'help' : 'assist', note);
-    ui.modal = null; render();
+    const me = Crew.members()[0]; Crew.raise(me, m.urgent ? 'help' : 'assist', note);
+    ui.modal = ui.helpBack || null; ui.helpBack = null; render();
     toast(alertSentMsg('help request'));
   }
+  if (ev.target.id === 'log-form') { ev.preventDefault(); logCommand(new FormData(ev.target).get('q')); return; }
   if (ev.target.id === 'ask-form') { ev.preventDefault(); askNow(new FormData(ev.target).get('q')); }
   if (ev.target.id === 'emg-ask-form') { ev.preventDefault(); emgAskNow(new FormData(ev.target).get('q')); }
   if (ev.target.id === 'emg-describe') { ev.preventDefault(); describeNow(new FormData(ev.target).get('text')); }
@@ -1146,6 +1187,7 @@ document.addEventListener('submit', (ev) => {
   }
 });
 document.addEventListener('keydown', (ev) => {
+  if (document.body.classList.contains('alarm')) return; // a call for help must be answered with a button
   if (ev.key === 'Escape' && ui.modal) { actions.close(); return; }
   if (Auth.user() && !ui.modal && !ev.metaKey && !ev.ctrlKey && !ev.altKey && !(ev.target.matches && ev.target.matches('input, select, textarea')) && SECTIONS[+ev.key - 1]) { actions.view({ v: SECTIONS[+ev.key - 1].v }); return; }
   if (!ev.target.matches) return;
@@ -1171,10 +1213,12 @@ document.addEventListener('change', (ev) => {
   if (ev.target.id === 'set-len') { const v = Math.round(+ev.target.value); if (v >= 7 && v <= 1200) { state.missionDays = v; Engine.save(); render(); } }
   if (ev.target.id === 'set-every') { state.updateEvery = +ev.target.value; Engine.save(); toast(`Status update every ${state.updateEvery} hours`); }
   if (ev.target.id === 'ask-speak' && ui.modal) ui.modal.speak = ev.target.checked;
+  if (ev.target.id === 'set-env') { state.env = ev.target.value; Engine.save(); render(); toast(`Location: ${ENVIRONMENTS[state.env].short}`); }
+  if (ev.target.id === 'set-dark') { const t = ev.target.checked ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try { localStorage.setItem('novacare.theme', t); } catch (e) { /* ignore */ } renderTop(); }
   if (ev.target.id === 'set-sim') { state.showSim = ev.target.checked; Engine.save(); Crew.refresh(true); render(); }
 });
 
-setInterval(() => { if (Auth.user()) $('#banner').innerHTML = bannerHtml(); }, 30000); // also clears it once the last alert is resolved
+setInterval(() => { if (Auth.user()) { $('#banner').innerHTML = bannerHtml(); renderTakeover(); } }, 30000); // also clears it once the last alert is resolved
 
 /* Where an alert can reach: the crew through the database, or only this device (guest, no mission, no database). */
 function alertReach() {
@@ -1189,6 +1233,40 @@ function alertSentMsg(kind) {
   if (r === 'nomission') return `You are not on a mission, so nobody can receive this ${kind}. Join your crew’s mission first.`;
   return navigator.onLine === false ? `No signal — your ${kind} is saved and goes out as soon as the link is back` : `Sending your ${kind} to the crew…`;
 }
+/* ---------- a call for help takes over the screen ----------
+   An active alert from a crewmate covers everything (check-in, forms, any page) until this person
+   answers it. The task underneath is kept as it was, so nothing typed is lost. */
+const ackKey = () => 'novacare.ack:' + (Auth.user() ? Auth.user().id : '-');
+const acked = () => { try { return JSON.parse(localStorage.getItem(ackKey())) || []; } catch (e) { return []; } };
+function ackAlert(id) { try { localStorage.setItem(ackKey(), JSON.stringify([...acked(), id].slice(-200))); } catch (e) { /* ignore */ } }
+const fromMe = (a) => { const u = Auth.user(); return !!u && (a.fromId === u.id || (!!u.uid && a.fromId === u.uid)); };
+function takeoverList() { if (!Auth.user() || !state) return []; const seen = acked(); return Crew.active().filter((a) => !fromMe(a) && !seen.includes(a.id)); }
+function renderTakeover() {
+  let el = $('#takeover');
+  if (!el) { el = document.createElement('div'); el.id = 'takeover'; el.hidden = true; document.body.appendChild(el); }
+  const list = takeoverList(); const a = list[list.length - 1];
+  document.body.classList.toggle('alarm', !!a);
+  if (!a) { el.hidden = true; el.innerHTML = ''; return; }
+  const help = !!HELP_TYPES[a.type]; const urgent = !help || HELP_TYPES[a.type].urgent;
+  const person = Crew.members().find((m) => m.id === a.aboutId || m.id === a.fromId);
+  const al = person && person.med ? Medical.allergyNames(person.med) : [];
+  const key = a.id; if (el.dataset.key === key && !el.hidden) { const t = $('#to-ago'); if (t) t.textContent = timeAgo(a.createdAt); return; }
+  el.dataset.key = key; el.hidden = false;
+  el.className = urgent ? 'urgent' : 'assist';
+  el.innerHTML = `<div class="to-box" role="alertdialog" aria-modal="true" aria-labelledby="to-title" aria-describedby="to-desc">
+    <span class="to-ic">${icon('siren')}</span>
+    <p class="to-k">${urgent ? 'Crewmate needs help now' : 'A crewmate asks for a hand'} · <span id="to-ago">${timeAgo(a.createdAt)}</span></p>
+    <h1 id="to-title">${help ? `${esc(a.fromName)} ${urgent ? 'needs help' : 'could use a hand'}` : `Emergency: ${esc(a.aboutName)}`}</h1>
+    <p id="to-desc" class="to-what">${help ? esc(a.note || alertName(a.type)) : `${esc(alertName(a.type))} · raised by ${esc(a.fromName)}${a.note ? ` — “${esc(a.note)}”` : ''}`}</p>
+    ${al.length ? `<p class="to-alg"><b>Allergies:</b> ${al.map((x) => `<span class="alg-chip">${esc(x)}</span>`).join(' ')}</p>` : ''}
+    <div class="to-acts"><button class="btn to-go" data-act="takego" data-id="${esc(a.id)}">${icon('siren')}${help ? 'Go help' : 'Open protocol'}</button>
+      <button class="btn to-seen" data-act="takeack" data-id="${esc(a.id)}">I’ve seen it</button></div>
+    ${list.length > 1 ? `<p class="to-more">+${list.length - 1} more call${list.length > 2 ? 's' : ''} for help</p>` : ''}
+    <p class="to-note">Any task you were doing is kept — you can go back to it after.</p>
+  </div>`;
+  const go = el.querySelector('.to-go'); if (go) go.focus();
+}
+
 /* An incoming emergency must be noticed: banner, sound, vibration and a notification. */
 let lastAlertErr = '';
 function announceAlerts(list) {
@@ -1214,7 +1292,7 @@ function announceAlerts(list) {
 Sync.onChange((st, what, extra) => {
   if (!Auth.user()) return;
   if (what === 'alerts') {
-    $('#banner').innerHTML = bannerHtml(); renderNav(); lastAlertErr = '';
+    $('#banner').innerHTML = bannerHtml(); renderNav(); lastAlertErr = ''; renderTakeover();
     announceAlerts(extra || []);
     if (!ui.modal) { Crew.refresh(true); render(); } else if (ui.modal.type === 'emergency') renderModal();
     return;
@@ -1224,7 +1302,7 @@ Sync.onChange((st, what, extra) => {
     toast(HELP_TYPES[a.type] ? `✓ Help request from ${a.fromName} resolved` : `✓ Emergency resolved: ${a.aboutName} — ${alertName(a.type)}`);
     const m = ui.modal;
     if (m && m.type === 'emergency' && (ids.includes(m.alertId) || ids.includes(m.fromHelp))) { ui.modal = null; }
-    $('#banner').innerHTML = bannerHtml(); renderNav();
+    $('#banner').innerHTML = bannerHtml(); renderNav(); renderTakeover();
     if (!ui.modal) { Crew.refresh(true); render(); }
     return;
   }
