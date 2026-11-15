@@ -48,6 +48,11 @@ People only appear in the missions they created or joined, and the crew is made 
 - **Help when alone** — after a critical reading NovaCare asks "Are you OK?" and alerts the crew after 60 s without an answer (Settings → Emergencies). Physical robotic assistance is not part of the prototype.
 - **Works without Earth** — Settings → Data & sync runs a self-test of storage, the medication rules (a known allergy case), protocol search, analysis and the offline copy of the app.
 
+## Restarting missions and the mission loadout
+
+- **Restart every active mission on day 1:** run `supabase/setup.sql` (adds the `mission_epochs` table), then `supabase/restart_missions.sql` in the Supabase SQL editor. On the ship server: `node ship/server.js restart-missions`. Nothing is deleted on the database: each crew member's app moves what was recorded before (readings, mission log, follow-ups, decisions, status updates, emergency records) into an archive kept with their data (Settings → Raw data exports it), starts the mission again on day 1 and loads the mission loadout. Running it again on a later day restarts the missions again from that day.
+- **Mission loadout:** every new or restarted mission gets an inventory of what the crew takes, scaled to crew size and mission length — food and contingency water, the medical kit plus monitoring and exam supplies, hygiene, safety and repair equipment, and personal items. Each item has a low-stock level of about two weeks of use. Quantities are prototype estimates from public figures for long-duration station missions; adjust them in Crew → Ship inventory. Items have fixed ids per mission, so two devices loading it at once do not duplicate it.
+
 ## How Questions answers (and why it cannot invent a dose)
 
 NovaCare does not use a "trained" container. Three separate layers, all running on the ship's terminal with no internet:

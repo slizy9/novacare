@@ -279,7 +279,7 @@ const Sync = (() => {
 
   async function run() {
     if (!Auth.user()) return;
-    if (!Auth.cloud()) { set('local'); showcasePull(); showcaseAlerts(); return; }
+    if (!Auth.cloud()) { set('local'); showcasePull(); showcaseAlerts(); if (Missions.syncStarts) Missions.syncStarts().then((r) => { if (r) listeners.forEach((f) => f(status, 'pulled')); }); return; }
     if (running) { again = true; return; }
     running = true;
     try {
@@ -304,6 +304,7 @@ const Sync = (() => {
         if (meta().at === m.at) setMeta({ dirty: false, at, syncedAt: at }); // untouched while uploading
       }
       await crewSync(sb, uid);
+      if (await Missions.syncStarts()) listeners.forEach((f) => f(status, 'pulled')); // a restarted mission: day 1, earlier records archived
       set(meta().dirty ? 'pending' : 'synced');
     } catch (e) {
       set(Auth.isNetErr(e) ? 'offline' : 'error');

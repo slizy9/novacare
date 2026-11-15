@@ -10,6 +10,7 @@
 
      node ship/server.js            start (PORT 8787, DATA_DIR ./ship/data)
      node ship/server.js code       print the crew password-reset code
+     node ship/server.js restart-missions   restart every active mission on day 1 (today)
 */
 'use strict';
 const http = require('node:http');
@@ -39,6 +40,7 @@ db.exec(`
   create table if not exists missions (user_id text primary key, data text not null, updated_at text not null);
   create table if not exists mission_directory (code text primary key, name text not null, env text not null default 'iss',
     mission_days integer not null default 180, created_by text not null, creator_name text, created_at text not null);
+  create table if not exists mission_epochs (code text primary key, started_at text not null);
   create table if not exists mission_members (code text not null, user_id text not null, joined_at text not null, primary key (code, user_id));
   create index if not exists mission_members_user_idx on mission_members (user_id);
   create table if not exists crew_status (user_id text not null, crew_code text not null, name text, role text,
@@ -66,6 +68,14 @@ const RESET_CODE = (process.env.SHIP_RESET_CODE || ensureSetting('reset_code', (
 })).trim().toUpperCase();
 
 if (process.argv[2] === 'code') { console.log(RESET_CODE); process.exit(0); }
+if (process.argv[2] === 'restart-missions') { // every active mission starts again on day 1 (today); the apps archive what came before
+  const now = nowIso(); const codes = new Set(['NOVA-1']);
+  db.prepare('select code from mission_directory').all().forEach((r) => codes.add(r.code));
+  db.prepare('select code from mission_members').all().forEach((r) => codes.add(r.code));
+  db.prepare("select crew_code code from crew_status where crew_code <> ''").all().forEach((r) => codes.add(r.code));
+  const up = db.prepare('insert into mission_epochs (code, started_at) values (?, ?) on conflict (code) do update set started_at = excluded.started_at');
+  codes.forEach((c) => up.run(c, now)); console.log(`Restarted ${codes.size} missions on day 1: ${[...codes].join(', ')}`); process.exit(0);
+}
 
 /* ---------- tables: column types, defaults and access rules (mirrors supabase/setup.sql) ---------- */
 const isMember = (code, uid) => !!uid && !!db.prepare('select 1 from mission_members where code = ? and user_id = ?').get(code, uid);
@@ -95,6 +105,10 @@ const TABLES = {
     defaults: { env: () => 'iss', mission_days: () => 180, created_by: (uid) => uid, created_at: nowIso },
     select: () => true, // anyone, guests too, can find a mission and join it
     insert: own('created_by'), update: { using: own('created_by'), check: own('created_by') }, delete: own('created_by'),
+  },
+  mission_epochs: { // the day each mission (re)started; written with: node ship/server.js restart-missions
+    pk: ['code'], cols: { code: 'text', started_at: 'ts' }, defaults: {},
+    select: () => true,
   },
   mission_members: {
     pk: ['code', 'user_id'],
@@ -132,7 +146,7 @@ const TABLES = {
 };
 const NOT_NULL = {
   profiles: ['id', 'created_at'], missions: ['user_id', 'data', 'updated_at'],
-  mission_directory: ['code', 'name', 'env', 'mission_days', 'created_by', 'created_at'], mission_members: ['code', 'user_id', 'joined_at'],
+  mission_directory: ['code', 'name', 'env', 'mission_days', 'created_by', 'created_at'], mission_epochs: ['code', 'started_at'], mission_members: ['code', 'user_id', 'joined_at'],
   crew_status: ['user_id', 'crew_code', 'summary', 'updated_at'], alerts: ['id', 'crew_code', 'type', 'status', 'created_at'],
   inventory: ['id', 'crew_code', 'name', 'category', 'qty', 'min_qty', 'deleted', 'updated_at'],
 };

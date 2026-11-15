@@ -5,7 +5,7 @@
    Other missions this person belongs to are parked in state.archive[code], so everything still
    saves and syncs as one record. The active mission code is the account's crew code. */
 const Missions = (() => {
-  const FIELDS = ['env', 'md', 'days', 'missionDays', 'demo', 'missionName', 'startDate', 'log'];
+  const FIELDS = ['env', 'md', 'days', 'missionDays', 'demo', 'missionName', 'startDate', 'log', 'restarts'];
   const code = () => Auth.user().crew;
   const norm = (c) => String(c || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
   // start = the mission's first day (a joined mission starts when its creator created it, so the crew shares the same day)
@@ -52,6 +52,7 @@ const Missions = (() => {
     const c = newCode(); name = String(name || '').trim().slice(0, 40) || `Mission ${c}`;
     state.missions.push({ code: c, name, role: 'creator', at: new Date().toISOString() });
     activate(c, blank(ENVIRONMENTS[env] ? env : 'iss', clamp(Math.round(+len) || 180, 7, 1200), name));
+    loadInventory(); // a new mission starts with its loadout on board
     return c;
   }
   /** Join a mission with the code a crewmate shared, or from the mission directory. Returns { code, existed }. */
@@ -62,7 +63,8 @@ const Missions = (() => {
     const existed = state.missions.some((m) => m.code === c);
     if (!existed) state.missions.push({ code: c, name: d.name || '', role: 'member', at: new Date().toISOString() });
     const show = c === SHOWCASE.code;
-    activate(c, blank(show ? 'iss' : d.env, show ? SHOWCASE.days : d.mission_days, show ? SHOWCASE.name : d.name, show ? SHOWCASE.start + 'T12:00:00' : d.created_at));
+    const ep = startOf(c); // a restarted mission starts on its restart day
+    activate(c, blank(show ? 'iss' : d.env, show ? SHOWCASE.days : d.mission_days, show ? SHOWCASE.name : d.name, ep ? ep + 'T12:00:00' : show ? SHOWCASE.start + 'T12:00:00' : d.created_at));
     if (show) { const m = state.missions.find((x) => x.code === c); if (m && !m.name) m.name = SHOWCASE.name; }
     return { code: c, existed };
   }
@@ -98,7 +100,53 @@ const Missions = (() => {
     }
     Engine.save(); Sync.run(); return true;
   }
-  return { list, current, has, locked, label, activate, create, join, rename, leave, norm, directory, refreshDirectory };
+  /* ---------- mission restarts ----------
+     The database keeps the day each mission (re)started (table mission_epochs). When it is later than
+     this person's mission start, the mission begins again on day 1: everything recorded before is
+     archived in `restarts` (kept, synced and exported with the raw data), and the loadout is put on board. */
+  const EPOCH_KEY = 'novacare.epochs';
+  const epochs = () => { try { return JSON.parse(localStorage.getItem(EPOCH_KEY)) || {}; } catch (e) { return {}; } };
+  const startOf = (c) => { const e = epochs()[c]; return e ? Engine.dayKey(new Date(e)) : null; };
+  const PER_PERSON = ['updates', 'cases', 'decisions', 'emgLog', 'coach', 'emgOpen'];
+  function restartData(d, key, c, extra) {
+    const at = new Date().toISOString();
+    d.restarts = [...(Array.isArray(d.restarts) ? d.restarts : []), { at, code: c, from: d.startDate || null, to: key, md: d.md, days: d.days, log: d.log, ...(extra || {}) }].slice(-5);
+    d.md = 1; d.days = { 1: { vals: {}, tasks: {} } }; d.startDate = key; d.demo = false; delete d.log;
+  }
+  /** Apply restarts to the open mission and to parked ones. Returns true when something restarted. */
+  function applyRestarts() {
+    if (!state) return false; ensure(); let any = false;
+    const later = (key, d) => key && (!d.startDate || key > d.startDate);
+    const c = code(); const k = c && startOf(c);
+    if (later(k, state)) {
+      const extra = {}; PER_PERSON.forEach((f) => { if (state[f] !== undefined) { extra[f] = state[f]; delete state[f]; } });
+      restartData(state, k, c, extra); any = true;
+      if (typeof Inventory !== 'undefined') loadInventory(true);
+    }
+    Object.keys(state.archive || {}).forEach((ac) => { const d = state.archive[ac]; const ak = startOf(ac); if (later(ak, d)) { restartData(d, ak, ac); any = true; } });
+    if (any) { Engine.today(); Engine.save(); if (typeof Crew !== 'undefined') Crew.refresh(true); }
+    return any;
+  }
+  /** Fetch the restart days (readable by everyone, guests too), then apply them. */
+  let epBusy = false;
+  async function syncStarts() {
+    const sb = Auth.client(); if (!sb || epBusy || !Auth.user() || navigator.onLine === false) return false;
+    epBusy = true;
+    try {
+      const r = await sb.from('mission_epochs').select('code, started_at'); if (r.error) throw r.error;
+      localStorage.setItem(EPOCH_KEY, JSON.stringify(Object.fromEntries((r.data || []).map((x) => [x.code, x.started_at]))));
+    } catch (e) { if (!Auth.isNetErr(e)) console.warn('NOVACARE mission restarts (run supabase/setup.sql):', e.message || e); }
+    finally { epBusy = false; }
+    return applyRestarts();
+  }
+  /** Put the mission loadout on board once (it is skipped when the crew already has it). */
+  function loadInventory(force) {
+    if (typeof Inventory === 'undefined' || !code()) return null;
+    if (!force && Inventory.items().some((i) => /^Mission loadout/.test(i.note || ''))) return null;
+    const crew = typeof Crew !== 'undefined' ? Math.max(2, Crew.members().length) : 4;
+    return Inventory.loadout(missionLoadout(crew, state.missionDays || 180), code());
+  }
+  return { list, current, has, locked, label, activate, create, join, rename, leave, norm, directory, refreshDirectory, syncStarts, applyRestarts, startOf, loadInventory };
 })();
 
 /* ---------- ship inventory ----------
@@ -111,6 +159,55 @@ const INV_CATS = [
   { id: 'hygiene', name: 'Hygiene', icon: 'shield' },
   { id: 'other', name: 'Other', icon: 'box' },
 ];
+/* What a crew takes on a mission, scaled to crew size and mission length. Prototype estimates based on
+   public figures for long-duration station missions (about 1.8 kg of food per person a day, water mostly
+   recycled on board, so the stored water is a contingency reserve). `min` is the level that triggers a
+   low-stock warning: about two weeks of use, or the safe minimum for equipment. */
+function missionLoadout(n, days) {
+  const D = Math.max(7, days), up = Math.ceil, wk = up(D / 7);
+  const note = (t) => `Mission loadout · ${t}`;
+  return [
+    // food & water
+    { name: 'Meal packs', cat: 'food', qty: 3 * n * D, unit: 'packs', min: 3 * n * 14, note: note('3 per person a day (~1.8 kg)') },
+    { name: 'Drinking water (contingency reserve)', cat: 'food', qty: 2 * n * Math.min(D, 30), unit: 'L', min: 2 * n * 7, note: note('daily water comes from recycling') },
+    { name: 'Electrolyte drink packets', cat: 'food', qty: up(n * D / 2), unit: 'packets', min: n * 7, note: note('one every other day') },
+    { name: 'Coffee and tea packets', cat: 'food', qty: 2 * n * D, unit: 'packets', min: 2 * n * 7, note: note('2 per person a day') },
+    { name: 'Vitamin D 1000 IU', cat: 'medical', qty: n * D, unit: 'tablets', min: n * 14, note: note('no sunlight in the cabin') },
+    // medical (the standard kit, plus monitoring and exam supplies)
+    ...MED_KIT.map(([name, cat, qty, unit, min]) => ({ name, cat, qty: Math.max(qty, up(qty * n / 4)), unit, min, note: note('medical kit') })),
+    { name: 'Personal dosimeter', cat: 'medical', qty: n + 2, unit: 'units', min: n, note: note('one per person, worn at all times') },
+    { name: 'Thermometer', cat: 'medical', qty: 2, unit: 'units', min: 1, note: note('monitoring') },
+    { name: 'Glucose meter test strips', cat: 'medical', qty: up(n * D / 3), unit: 'strips', min: n * 5, note: note('fasting glucose every 3 days') },
+    { name: 'Urine test strips', cat: 'medical', qty: n * up(D / 14) * 2, unit: 'strips', min: n * 2, note: note('exam every 2 weeks') },
+    { name: 'ECG electrodes', cat: 'medical', qty: n * up(D / 30) * 10 + 20, unit: 'pcs', min: 20, note: note('monthly ECG') },
+    { name: 'Ultrasound gel', cat: 'medical', qty: up(D / 60) + 1, unit: 'bottles', min: 1, note: note('eye, heart and kidney scans') },
+    // hygiene
+    { name: 'Personal hygiene kit', cat: 'hygiene', qty: n, unit: 'kits', min: n, note: note('one per person') },
+    { name: 'Toothpaste', cat: 'hygiene', qty: up(n * D / 45), unit: 'tubes', min: n, note: note('a tube lasts ~45 days') },
+    { name: 'Rinseless shampoo', cat: 'hygiene', qty: up(n * D / 30), unit: 'bottles', min: n, note: note('a bottle lasts ~30 days') },
+    { name: 'Wet wipes', cat: 'hygiene', qty: n * wk, unit: 'packs', min: n * 2, note: note('a pack a week each') },
+    { name: 'Towels', cat: 'hygiene', qty: n * up(D / 10), unit: 'pcs', min: n * 2, note: note('a fresh towel every 10 days') },
+    { name: 'Waste collection bags', cat: 'hygiene', qty: 2 * n * D, unit: 'bags', min: 2 * n * 7, note: note('toilet and trash') },
+    { name: 'Disinfectant wipes', cat: 'hygiene', qty: up(n * D / 10), unit: 'packs', min: n * 2, note: note('surfaces and shared equipment') },
+    // equipment and safety
+    { name: 'CO₂ scrubber cartridges (contingency)', cat: 'equipment', qty: 8 + 2 * up(D / 30), unit: 'units', min: 4, note: note('backup to the CO₂ removal system') },
+    { name: 'Portable fire extinguisher', cat: 'equipment', qty: 4, unit: 'units', min: 2, note: note('one per module') },
+    { name: 'Portable breathing apparatus', cat: 'equipment', qty: n + 2, unit: 'units', min: n, note: note('fire and toxic-leak response') },
+    { name: 'Emergency oxygen masks', cat: 'equipment', qty: 2 * n, unit: 'units', min: n, note: note('depressurisation') },
+    { name: 'Ammonia respirator', cat: 'equipment', qty: n + 2, unit: 'units', min: n, note: note('cooling-loop leak') },
+    { name: 'Resistance exercise bands', cat: 'equipment', qty: 2 * n, unit: 'units', min: n, note: note('exercise countermeasure') },
+    { name: 'Headlamps', cat: 'equipment', qty: n + 1, unit: 'units', min: n, note: note('power loss') },
+    { name: 'Batteries (AA)', cat: 'equipment', qty: 48 + 4 * wk, unit: 'units', min: 24, note: note('lights and medical devices') },
+    { name: 'Tool kit', cat: 'equipment', qty: 2, unit: 'kits', min: 1, note: note('maintenance') },
+    { name: 'Duct tape', cat: 'equipment', qty: 6 + up(D / 60), unit: 'rolls', min: 2, note: note('repairs') },
+    // personal
+    { name: 'Sleeping bag', cat: 'other', qty: n, unit: 'units', min: n, note: note('one per person') },
+    { name: 'Eye masks and earplugs', cat: 'other', qty: n * 4, unit: 'sets', min: n, note: note('sleep protection') },
+    { name: 'Clothing set (shirt, shorts, socks)', cat: 'other', qty: n * up(D / 4), unit: 'sets', min: n * 3, note: note('a fresh set every 4 days') },
+    { name: 'Exercise clothing set', cat: 'other', qty: n * wk, unit: 'sets', min: n, note: note('a fresh set each week') },
+    { name: 'Personal care package from home', cat: 'other', qty: n, unit: 'packages', min: 0, note: note('one per person') },
+  ].map((r) => (r.qty <= r.min ? { ...r, min: Math.floor(r.qty / 2) } : r)); // a full load never starts as "low"
+}
 const INV_STARTER = [
   ['First-aid kit', 'medical', 4, 'kits', 2], ['Pain relief tablets', 'medical', 120, 'tablets', 40], ['Antibiotic course', 'medical', 6, 'courses', 3],
   ['Bandages & dressings', 'medical', 60, 'pcs', 20], ['Blood pressure cuff', 'medical', 2, 'units', 1], ['Pulse oximeter', 'medical', 3, 'units', 1],
@@ -185,7 +282,19 @@ const Inventory = (() => {
   }
   const pending = () => all().filter((i) => i.pending);
   function clearPending(ids) { write(all().map((i) => (ids.includes(i.id) ? { ...i, pending: false } : i))); }
-  return { items, level, save, adjust, remove, importRows, parseCsv, toCsv, merge, pending, clearPending, starter: () => importRows(INV_STARTER.map(([name, cat, qty, unit, min]) => ({ name, cat, qty, unit, min }))) };
+  /** The mission loadout: one item per row, with an id fixed by mission and name, so loading it on two
+      devices at once gives the same items. Existing items with the same name are updated. */
+  function loadout(rows, c) {
+    const a = all(); let added = 0, updated = 0;
+    rows.forEach((r) => {
+      const d = clean(r); if (!d.name) return;
+      const id = `load:${c}:${d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`;
+      const it = a.find((x) => x.id === id) || a.find((x) => !x.deleted && x.name.toLowerCase() === d.name.toLowerCase());
+      if (it) { Object.assign(it, d, stamp(), { deleted: false }); updated++; } else { a.push({ id, ...d, ...stamp() }); added++; }
+    });
+    write(a); Sync.run(); return { added, updated };
+  }
+  return { loadout, items, level, save, adjust, remove, importRows, parseCsv, toCsv, merge, pending, clearPending, starter: () => importRows(INV_STARTER.map(([name, cat, qty, unit, min]) => ({ name, cat, qty, unit, min }))) };
 })();
 
 /* ---------- views ---------- */

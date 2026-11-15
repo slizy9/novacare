@@ -265,3 +265,14 @@ begin
           p_type, left(coalesce(p_note, ''), 160), p_md, p_status, now(), case when p_status = 'resolved' then now() else null end);
 end $$;
 grant execute on function public.showcase_raise(uuid, text, text, text, text, text, int, text) to anon, authenticated;
+
+-- Mission restarts: the day each mission (re)started. When it is later than a crew member's mission
+-- start, the app restarts that mission on day 1 and archives what was recorded before. Everyone,
+-- guests too, can read it; only this SQL editor writes it (see supabase/restart_missions.sql).
+create table if not exists public.mission_epochs (
+  code       text primary key,
+  started_at timestamptz not null default now()
+);
+alter table public.mission_epochs enable row level security;
+drop policy if exists "anyone can read mission starts" on public.mission_epochs;
+create policy "anyone can read mission starts" on public.mission_epochs for select to anon, authenticated using (true);
