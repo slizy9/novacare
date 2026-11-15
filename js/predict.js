@@ -103,7 +103,7 @@ const Predict = (() => {
 function predictCard(list, opts = {}) {
   const items = opts.limit ? list.slice(0, opts.limit) : list;
   const risky = list.filter((p) => p.level > 0).length;
-  return `<section class="card predict" aria-label="Predicted risks">
+  return `<section class="card predict${opts.space ? ' space' : ''}" aria-label="Predicted risks">
     <div class="card-h"><div><h2>${icon('chart')}What’s ahead</h2><p class="muted small">${risky ? `${risky} thing${risky > 1 ? 's' : ''} to act on` : 'Nothing to worry about'}</p></div>
       ${opts.more ? `<button class="btn ghost sm" data-act="view" data-v="analysis">See all${icon('next')}</button>` : ''}</div>
     <ul class="pred">${items.map((p) => `<li class="${lc(p.level)}">

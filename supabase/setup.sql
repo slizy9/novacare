@@ -147,6 +147,15 @@ insert into public.mission_members (code, user_id)
   select crew_code, user_id from public.crew_status where crew_code is not null and crew_code <> ''
   on conflict do nothing;
 
+-- Showcase mission NOVA-1: guests see its real crew, without medical history.
+create or replace function public.showcase_crew()
+returns table (user_id uuid, name text, role text, summary jsonb, updated_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select c.user_id, c.name, c.role, c.summary - 'med', c.updated_at
+  from public.crew_status c where c.crew_code = 'NOVA-1' order by c.updated_at desc limit 30
+$$;
+grant execute on function public.showcase_crew() to anon, authenticated;
+
 create table if not exists public.alerts (
   id          uuid primary key,
   crew_code   text not null,

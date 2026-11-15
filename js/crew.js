@@ -8,6 +8,11 @@ const KNOWN_PHOTOS = { 'bruno llobet chanto': 'img/crew/bruno-llobet-chanto.jpg'
 const normName = (n) => String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ');
 function photoFor(name, own) { if (own === 'none') return ''; return own || KNOWN_PHOTOS[normName(name)] || ''; }
 
+/* Mission NOVA-1 is the shared showcase mission: the guest (Bruno) is on it, registered people can
+   join it, and visitors browsing as guest see those real crew members (without their medical data).
+   It has a fixed start date so everyone on it is on the same mission day. */
+const SHOWCASE = { code: 'NOVA-1', name: 'Mission NOVA-1', start: '2026-10-12', days: 180 };
+
 /* The mission log was reset at this moment: earlier alerts, notes and log lines are left out. */
 const LOG_EPOCH = '2026-11-15T03:10:00Z';
 
@@ -147,8 +152,9 @@ const Crew = (() => {
     stamp = k;
     const u = Auth.user();
     const me = summarize(state, { id: u.id, name: state.name || u.name, role: u.role, me: true });
-    // only real people who registered and joined this mission (the simulated demo crew was retired)
-    const mates = Auth.cloud() ? cloudMates() : localMates();
+    // only real people who registered and joined this mission (the simulated demo crew was retired);
+    // a guest on the showcase mission sees its real crew, read from the database
+    const mates = Auth.cloud() ? cloudMates() : [...localMates(), ...(u.guest && u.crew === SHOWCASE.code ? cloudMates() : [])];
     list = [me, ...mates];
     return list;
   }

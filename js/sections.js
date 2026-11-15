@@ -50,6 +50,7 @@ function vitalCell(m, id, label) {
    conditions, medication and blood type. `full` adds notes and the baseline. */
 function medHistoryHtml(m, full) {
   const p = m.med;
+  if (!m.me && Auth.user() && Auth.user().guest && !m.sim && m.id && !String(m.id).startsWith('sim:') && !p) return `<div class="crew-med none">${icon('shield')}<span>Medical history is private — only ${esc(firstName(m))}’s crew can see it</span></div>`;
   if (!p || Medical.empty(p)) return `<div class="crew-med none">${icon('care')}<span>${m.me ? 'You have not filled in' : `${esc(firstName(m))} has not shared`} a medical history</span></div>`;
   const al = Medical.allergyNames(p);
   const line = (label, body) => `<div class="cm-row"><dt>${label}</dt><dd>${body}</dd></div>`;

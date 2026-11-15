@@ -262,7 +262,7 @@ const Sync = (() => {
 
   async function run() {
     if (!Auth.user()) return;
-    if (!Auth.cloud()) { set('local'); return; }
+    if (!Auth.cloud()) { set('local'); showcasePull(); return; }
     if (running) { again = true; return; }
     running = true;
     try {
@@ -299,6 +299,23 @@ const Sync = (() => {
 
   /* crew sharing: my summary up, crewmates and emergency alerts down.
      Kept separate so a project without the crew tables still syncs mission data. */
+  /* A guest on the showcase mission sees its real, registered crew (read-only, no medical data).
+     The database hands this out through showcase_crew() — see supabase/repair_accounts.sql. */
+  let showBusy = false;
+  async function showcasePull() {
+    const u = Auth.user(); const sb = Auth.client();
+    if (!u || !u.guest || !sb || u.crew !== SHOWCASE.code || showBusy || navigator.onLine === false) return;
+    showBusy = true;
+    try {
+      const r = await sb.rpc('showcase_crew');
+      if (r.error) throw r.error;
+      const key = 'novacare.crew:' + u.id; const before = localStorage.getItem(key);
+      localStorage.setItem(key, JSON.stringify((r.data || []).filter((x) => x && x.summary)));
+      if (before !== localStorage.getItem(key)) listeners.forEach((f) => f(status, 'crew'));
+    } catch (e) { if (!Auth.isNetErr(e)) console.warn('NOVACARE showcase crew (run supabase/repair_accounts.sql):', e.message || e); }
+    finally { showBusy = false; }
+  }
+
   let profileChecked = false; // once per app start
   async function crewSync(sb, uid) {
     const u = Auth.user(); const acc = Auth.account() || {};

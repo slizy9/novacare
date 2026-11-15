@@ -61,7 +61,9 @@ const Missions = (() => {
     const d = info || directory().find((x) => x.code === c) || {};
     const existed = state.missions.some((m) => m.code === c);
     if (!existed) state.missions.push({ code: c, name: d.name || '', role: 'member', at: new Date().toISOString() });
-    activate(c, blank(d.env, d.mission_days, d.name, d.created_at));
+    const show = c === SHOWCASE.code;
+    activate(c, blank(show ? 'iss' : d.env, show ? SHOWCASE.days : d.mission_days, show ? SHOWCASE.name : d.name, show ? SHOWCASE.start + 'T12:00:00' : d.created_at));
+    if (show) { const m = state.missions.find((x) => x.code === c); if (m && !m.name) m.name = SHOWCASE.name; }
     return { code: c, existed };
   }
 

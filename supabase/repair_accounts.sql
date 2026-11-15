@@ -19,5 +19,18 @@ where not exists (select 1 from public.profiles p where p.id = u.id);
 -- 3) Reset the log: remove every emergency and help request recorded so far.
 delete from public.alerts;
 
+-- 4) Showcase mission NOVA-1: visitors browsing as guest see its real crew (name, role, photo,
+--    readiness and readings summary). Medical history (allergies, medication) is never included.
+create or replace function public.showcase_crew()
+returns table (user_id uuid, name text, role text, summary jsonb, updated_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select c.user_id, c.name, c.role, c.summary - 'med', c.updated_at
+  from public.crew_status c
+  where c.crew_code = 'NOVA-1'
+  order by c.updated_at desc
+  limit 30
+$$;
+grant execute on function public.showcase_crew() to anon, authenticated;
+
 -- To free an email completely so that person can register from zero, delete the account in
 -- Authentication → Users (not only in the profiles table). Their data is removed with it.

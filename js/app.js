@@ -213,7 +213,7 @@ function viewLobby() {
       <span class="tv-l">${label}</span><b class="tv-v num">${val}</b>
       <span class="tv-s"><span class="dot"></span>${st.v == null ? 'Not logged' : levelText(lvl)}${st.v != null && st.age > 0 ? ` · MD ${st.md}` : ''}</span></button>`;
   };
-  const today = `<section class="card today" aria-label="You today">
+  const today = `<section class="card today space" aria-label="You today">
       <div class="today-score">${ring(me.readiness)}</div>
       <div class="today-main">
         <div class="today-h"><div><h2>You today</h2><p class="muted small">${v.level < 0 ? 'Log a check-in to get your readiness score.' : esc(v.reasons[0] || v.name)}</p></div>
@@ -230,7 +230,7 @@ function viewLobby() {
     const verdicts = crew.map((m) => Crew.verdict(m)); const onTrack = verdicts.filter((x) => x.level === 0).length;
     const items = Inventory.items(); const low = items.filter((i) => Inventory.level(i) > 0).length;
     const frac = clamp(state.md / len, 0, 1);
-    mission = `<section class="card lobby-mission">
+    mission = `<section class="card lobby-mission space">
         <div><span class="kicker">${esc(ENVIRONMENTS[cur.env].short)}</span><h2>${esc(cur.name)}</h2></div>
         <ul class="lm-list">
           <li>${icon('users')}<span>Crew on track</span><b class="num">${onTrack}/${crew.length}</b></li>
@@ -240,19 +240,19 @@ function viewLobby() {
         <div class="lm-acts"><button class="btn ghost sm" data-act="missiontab" data-v="missions">Switch</button><button class="btn primary sm" data-act="missiontab" data-v="status">Mission status${icon('next')}</button></div>
       </section>`;
   } else {
-    mission = `<section class="card lobby-mission">
+    mission = `<section class="card lobby-mission space">
         <div><span class="kicker">Guest</span><h2>No mission yet</h2></div>
         <p class="muted small">Use every section on your own, or join a mission to share your status with a crew on this device.</p>
         <div class="lm-acts"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></section>`;
   }
-  return hero + guideHtml() + `<div class="lobby-grid">${today}${mission}</div>` + predictCard(Predict.all(), { limit: 2, more: true });
+  return hero + guideHtml() + `<div class="lobby-grid">${today}${mission}</div>` + predictCard(Predict.all(), { limit: 2, more: true, space: true });
 }
 
 /* First visit: the three things to know, in plain words. Hidden for good with "Got it". */
 function guideHtml() {
   if (state.guideDone) return '';
   const step = (n, ic, t, d, act, label) => `<li><span class="gd-n">${n}</span><div><b>${icon(ic)}${t}</b><p>${d}</p></div>${act ? `<button class="btn ghost sm" ${act}>${label}</button>` : ''}</li>`;
-  return `<section class="card guide" aria-label="How NovaCare works">
+  return `<section class="card guide space" aria-label="How NovaCare works">
     <div class="card-h"><div><h2>How NovaCare works</h2><p class="muted small">Three things — that’s all you need.</p></div><button class="btn primary sm" data-act="guidedone">Got it</button></div>
     <ol class="gd">
       ${step(1, 'pulse', 'Check in once a day', 'About a minute: how you feel and your vitals. NovaCare tells you if anything needs attention.', 'data-act="checkin"', 'Check in')}
@@ -282,7 +282,9 @@ function viewMissions() {
           <span class="mcard-go">${m.active ? 'Open mission status' : 'Switch to this mission'}${icon('next')}</span></span></button>
       <footer class="mcard-foot"><button class="codechip" data-act="copycode" data-code="${esc(m.code)}" title="Copy the code to share it with your crew">${icon('copy')}<span>${esc(m.code)}</span></button>
         <button class="btn quiet sm" data-act="leavemission" data-code="${esc(m.code)}">Leave</button></footer></article>`; }).join('');
-  const adds = `<button class="mcard add" data-act="newmission"><span class="add-ic">${icon('plus')}</span><b>Create a mission</b><small>Name it, pick where it happens and get a code to share with your crew.</small></button>
+  const onShow = all.some((m) => m.code === SHOWCASE.code);
+  const adds = (onShow || u.guest ? '' : `<button class="mcard add show" data-act="joindir" data-code="${SHOWCASE.code}"><span class="add-ic">${icon('users')}</span><b>Join ${SHOWCASE.name}</b><small>The shared crew. Visitors who open NovaCare as a guest will see you on it (never your medical history).</small></button>`) +
+    `<button class="mcard add" data-act="newmission"><span class="add-ic">${icon('plus')}</span><b>Create a mission</b><small>Name it, pick where it happens and get a code to share with your crew.</small></button>
     <button class="mcard add join" data-act="joinmission"><span class="add-ic">${icon('users')}</span><b>Join with a code</b><small>Enter the code a crewmate shared to join their mission.</small></button>`;
   return pageHead('Missions', Missions.has() ? 'Switch between your missions, create a new one or join one' : `${u.guest ? 'Optional for guests: ' : ''}create your own mission or join one to work with a crew`) + missionTabs() +
     `<section class="lobby-sec"><div class="lobby-h"><h2>Your missions</h2><p>${all.length ? `${all.length} mission${all.length === 1 ? '' : 's'} · each one keeps its own readings, crew and ship inventory.` : 'None yet — create one or join a mission from the list below.'}</p></div>
@@ -318,7 +320,13 @@ function overviewTop() {
       <section class="card ov-kv"><h2>Key Vitals</h2>
         <button class="ov-hr ${lc(hr.level)}" data-act="detail" data-id="hr" aria-label="Heart rate, open trend"><span class="ov-heart">${icon('heart')}</span>
           <span class="ov-n"><b class="num" ${hr.v == null ? '' : `data-count="${hr.v}"`}>${hr.v == null ? '—' : hr.v}</b><small>bpm</small></span>
-          <svg class="ecg" viewBox="0 0 170 60" aria-hidden="true"><path d="M0 34h38l8-8 8 8h10l7-26 9 48 8-30 6 8h12l7-14 8 14h41"/></svg></button></section>
+          <svg class="ecg" viewBox="0 0 170 60" aria-hidden="true"><path d="M0 34h38l8-8 8 8h10l7-26 9 48 8-30 6 8h12l7-14 8 14h41"/></svg></button>
+        <ul class="kv-list">${[['sys', 'Blood pressure', 'drop'], ['spo2', 'Blood oxygen', 'wind'], ['temp', 'Temperature', 'zap'], ['sleep', 'Sleep', 'clock'], ['stress', 'Stress', 'brain']].map(([id, label, ic]) => {
+          const st = Engine.status(id); const lvl = st.v == null ? -1 : st.level;
+          let val = st.v == null ? '—' : IND[id].type === 'scale' ? esc(Engine.label(IND[id], st.v)) : `${Engine.fmt(IND[id], st.v)}<small> ${IND[id].unit}</small>`;
+          if (id === 'sys' && st.v != null) { const d = Engine.status('dia'); val = `${st.v}/${d.v ?? '—'}<small> mmHg</small>`; }
+          return `<li><button class="${lc(lvl)}" data-act="detail" data-id="${id}" aria-label="${esc(label)}, open trend"><span class="kv-ic">${icon(ic)}</span><span class="kv-l">${label}</span><b class="kv-v num">${val}</b><span class="kv-s"><span class="dot"></span>${st.v == null ? 'Not logged' : levelText(lvl)}</span></button></li>`;
+        }).join('')}</ul></section>
     </div>
     <section class="card ov-health"><h2>Health</h2>
       ${item('checkin', '', 'plus', 'Add info')}${item('status', '', 'checks', 'How do you feel')}${item('ask', '', 'chat', 'Questions')}${item('sub', 'vitals', 'pulse', 'Vitals')}${item('sub', 'today', 'calendar', 'Routine')}${item('sub', 'hazards', 'hazard', 'Hazards')}${item('sub', 'medical', 'care', 'Medical profile')}${item('bodystatus', '', 'layers', 'Body Status')}</section>
@@ -875,6 +883,7 @@ function render() {
   slideInd($('.subnav'), 'sub');
   if (entering) { window.scrollTo(0, 0); countUp(app); } else window.scrollTo(0, y);
   const term = $('#term-out'); if (term) term.scrollTop = term.scrollHeight; // a terminal shows its latest line
+  if (ui.view === 'lobby') Earth.paint(app); // the Home cards together show the Earth
   renderModal(); renderSos(); renderTakeover();
 }
 /* "Ask crew for help" is always one tap away, on every page, above any task. */
@@ -1171,14 +1180,15 @@ function statusNext() {
 
 /* The guest is Bruno, already on a preset mission with a month of readings, so everything can be
    tried at once. Set up once per device; it stays on the device and never syncs. */
-const GUEST_MISSION = { code: 'NOVA-1', name: 'Mission NOVA-1', days: 180 };
+const GUEST_MISSION = SHOWCASE;
 function setupGuest() {
-  const u = Auth.user(); if (!u || !u.guest || state.guestReady) return;
+  const u = Auth.user(); if (!u || !u.guest) return;
+  if (state.guestReady) { if (state.guestReady !== 2 && u.crew === SHOWCASE.code) { state.startDate = SHOWCASE.start; state.guestReady = 2; Engine.calendarDay(); Engine.save(); } return; }
   state = keepAccount(Engine.demo());
-  state.name = u.name; state.guestReady = true; state.guideDone = false;
+  state.name = u.name; state.guestReady = 2; state.guideDone = false;
   state.missions = [{ code: GUEST_MISSION.code, name: GUEST_MISSION.name, role: 'member', at: new Date().toISOString() }];
   state.archive = {}; state.missionName = GUEST_MISSION.name; state.missionDays = GUEST_MISSION.days;
-  delete state.startDate; Engine.calendarDay(); // the demo's day 34 is today, and days keep passing with the calendar
+  state.startDate = SHOWCASE.start; Engine.calendarDay(); // same mission day as everyone on NOVA-1
   Auth.updateProfile({ crew: GUEST_MISSION.code });
   Engine.today(); Engine.save(); Crew.refresh(true);
 }
