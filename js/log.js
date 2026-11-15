@@ -28,6 +28,11 @@ const MissionLog = (() => {
     });
     // alerts: raised and resolved
     Crew.alerts().forEach((a) => {
+      if (isRecord(a)) { // approvals and discharges signed by the Crew Medical Officer
+        const [id, src] = String(a.note || '').split('|');
+        out.push({ at: a.createdAt, md: a.md, kind: 'health', who: a.fromName, text: a.type === 'care' ? `Discharge signed for ${a.aboutName}` : a.type === 'approve' ? `Protocol approved: ${id} (${Protocols.nameOf(id)}) — checked against ${src}` : `Approval withdrawn: ${id}`, level: 0 });
+        return;
+      }
       const what = HELP_TYPES[a.type] ? `${a.fromName} asked for help${a.note ? ` — “${a.note}”` : ''}` : `EMERGENCY for ${a.aboutName}: ${alertName(a.type)} (raised by ${a.fromName})`;
       out.push({ at: a.createdAt, md: a.md, kind: 'alert', who: a.fromName, text: what, level: 3 });
       if (a.status === 'resolved') out.push({ at: a.resolvedAt || a.createdAt, md: a.md, kind: 'alert', who: '', text: `Resolved: ${HELP_TYPES[a.type] ? `help request from ${a.fromName}` : `${alertName(a.type)} for ${a.aboutName}`}`, level: 0 });
@@ -36,6 +41,15 @@ const MissionLog = (() => {
     if (typeof Inventory !== 'undefined') Inventory.items().forEach((i) => {
       if (!i.at) return;
       out.push({ at: i.at, md: i.md, kind: 'supply', who: i.by || '', text: `${i.name}: ${i.qty} ${i.unit}${Inventory.level(i) === 3 ? ' — OUT' : Inventory.level(i) === 1 ? ' — low' : ''}`, level: Inventory.level(i) >= 3 ? 2 : Inventory.level(i) });
+    });
+    // decisions taken on NovaCare's findings, and the record of each emergency
+    (Array.isArray(state.decisions) ? state.decisions : []).forEach((d) => out.push({ at: d.at, md: d.md, kind: 'health', who: me, text: `Decision: ${(typeof DECISION_ACTS !== 'undefined' && DECISION_ACTS[d.act]) || d.act} — ${d.title} (rule ${d.rule})`, level: 0 }));
+    (Array.isArray(state.emgLog) ? state.emgLog : []).forEach((r) => { const steps = (r.steps || []).filter((x) => typeof x === 'string'); const asked = r.asked || []; const min = Math.max(1, Math.round((new Date(r.end) - new Date(r.start)) / 60000));
+      out.push({ at: r.end, md: r.md, kind: 'alert', who: r.rescuer, text: `Emergency record — ${r.name} · patient ${r.patient} · ${(r.steps || []).length} of ${r.total} steps in ${min} min${steps.length ? ` (step ${steps.join(', ')})` : ''}${asked.length ? ` · asked: ${asked.join('; ')}` : ''}`, level: 0 }); });
+    // care cases: opened and discharged
+    Object.values(state.cases || {}).forEach((c) => {
+      out.push({ at: c.openedAt, md: c.openedMd, kind: 'health', who: me, text: `Follow-up opened: ${c.title} (rule ${c.rule})`, level: c.level });
+      if (c.status === 'discharged') out.push({ at: c.dischargedAt, md: c.dischargedMd, kind: 'health', who: me, text: `Discharged: ${c.title} — ${c.by}`, level: 0 });
     });
     notes().forEach((n) => out.push({ at: n.at, md: n.md, kind: 'note', who: n.by, text: n.text, level: 0 }));
     return out.filter((e) => e.at && e.at >= LOG_EPOCH).sort((a, b) => a.at.localeCompare(b.at)).slice(-300);
@@ -78,7 +92,11 @@ function logCommand(raw) {
   ui.logMsg = '';
   if (q[0] === '/') {
     const [cmd, arg] = q.slice(1).split(/\s+/);
-    if (cmd === 'help') ui.logMsg = 'Commands: /filter health|alerts|inventory|notes|all · /export · /clear · anything else is saved as a note';
+    const rest = q.slice(1).split(/\s+/).slice(2).join(' ');
+    if (cmd === 'help') ui.logMsg = 'Commands: /filter health|alerts|inventory|notes|all · /export · /clear · /protocols · /approve ID document · /revoke ID · anything else is saved as a note';
+    else if (cmd === 'protocols') { const s = Protocols.summary(); ui.logMsg = `${s.approved} of ${s.total} protocols approved by a medical officer.${s.drafts.length ? ` Drafts: ${s.drafts.slice(0, 12).join(', ')}${s.drafts.length > 12 ? ` and ${s.drafts.length - 12} more` : ''}.` : ''}${Protocols.signer() ? ' Approve with /approve ID document.' : ' Only the Crew Medical Officer can approve.'}`; }
+    else if (cmd === 'approve') { ui.logMsg = arg ? Protocols.approve(arg, rest) : 'Usage: /approve KB-MED-09 ISS Medical Checklist'; }
+    else if (cmd === 'revoke') { ui.logMsg = arg ? Protocols.revoke(arg) : 'Usage: /revoke KB-MED-09'; }
     else if (cmd === 'filter') { const k = { alerts: 'alert', alert: 'alert', inventory: 'supply', supply: 'supply', notes: 'note', note: 'note', health: 'health', all: 'all' }[String(arg || '').toLowerCase()]; if (k) ui.logFilter = k; else ui.logMsg = 'Unknown filter. Try /filter alerts'; }
     else if (cmd === 'clear') ui.logFilter = 'all';
     else if (cmd === 'export') { actions.logexport(); return; }

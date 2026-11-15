@@ -126,6 +126,7 @@ function helpHtml(m) {
   return `<div class="sheet narrow helpreq" role="dialog" aria-modal="true" aria-label="Ask your crew for help">
     <header><div><p class="kicker">Ask your crew for help</p><h2>Everyone on your mission is alerted</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <form id="help-form" class="sheet-b one">
+      ${(() => { const mine = Crew.active().filter((a) => fromMe(a) && HELP_TYPES[a.type]); return mine.map((a) => `<div class="done-next l2"><span class="dot"></span><div><b>Your request is active</b><p>${esc(alertName(a.type))} · ${timeAgo(a.createdAt)}${a.note ? ` — “${esc(a.note)}”` : ''}</p></div><button type="button" class="btn ghost sm" data-act="emgdone" data-id="${esc(a.id)}">Cancel request</button></div>`).join(''); })()}
       <div class="st-opts">
         <button type="button" class="${m.urgent ? 'on' : ''} urgent" data-act="helpurg" data-v="1">${icon('siren')}<span><b>I need help now</b><small>Crewmates come to you right away</small></span></button>
         <button type="button" class="${m.urgent ? '' : 'on'}" data-act="helpurg" data-v="0">${icon('users')}<span><b>I could use a hand</b><small>Not urgent — when someone is free</small></span></button>
@@ -134,6 +135,7 @@ function helpHtml(m) {
         <div class="chips ask-sug">${HELP_WHY.map((w) => `<button type="button" class="${m.why.includes(w) ? 'on' : ''}" data-act="helpwhy" data-v="${w}">${w}</button>`).join('')}</div></div>
       <div class="ask-row"><input id="help-note" name="note" class="text" type="text" maxlength="160" placeholder="Add a short note (where you are, what happened)">${micBtn('help-note')}</div>
       <button class="btn ${m.urgent ? 'sos' : 'primary'} lg save-big" type="submit">${icon('bell')}${m.urgent ? 'Alert the crew now' : 'Send to the crew'}</button>
+      <button type="button" class="btn ghost lg" data-act="emgself">${icon('care')}Open the emergency instructions</button>
       ${alertReach() === 'cloud' ? '<p class="muted small">Sent to everyone on your mission. With no signal it is saved and sent when the link is back.</p>'
         : `<p class="small l2"><b>${alertSentMsg('request').replace(/^[^:]+: (.)/, (x, c) => c.toUpperCase())}</b></p>`}
     </form></div>`;

@@ -229,3 +229,39 @@ create trigger crew_status_role before insert or update on public.crew_status
   for each row execute procedure public.crew_status_role();
 revoke execute on function public.crew_status_role() from anon, authenticated;
 revoke execute on function public.keep_profile_role() from anon, authenticated;
+
+-- Showcase mission NOVA-1: guests see its calls for help and emergencies, and their own reach its crew.
+-- A guest has no account, so this goes through two functions instead of the alerts policies.
+-- Guests can only change guest alerts, and at most 10 guest alerts in 10 minutes are accepted.
+create or replace function public.showcase_alerts()
+returns table (id uuid, from_user uuid, from_name text, about_id text, about_name text, type text, note text, md int, status text, created_at timestamptz, resolved_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select a.id, a.from_user, a.from_name, a.about_id, a.about_name, a.type, a.note, a.md, a.status, a.created_at, a.resolved_at
+  from public.alerts a
+  where a.crew_code = 'NOVA-1' and a.created_at > now() - interval '2 days'
+    and a.type in ('help', 'assist', 'unresponsive', 'breathing', 'chest', 'bleeding', 'head', 'allergy', 'toxic', 'burn', 'fracture', 'psych')
+  order by a.created_at desc limit 50
+$$;
+grant execute on function public.showcase_alerts() to anon, authenticated;
+
+create or replace function public.showcase_raise(p_id uuid, p_from_name text, p_about_id text, p_about_name text, p_type text, p_note text, p_md int, p_status text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_type not in ('help', 'assist', 'unresponsive', 'breathing', 'chest', 'bleeding', 'head', 'allergy', 'toxic', 'burn', 'fracture', 'psych') then
+    raise exception 'Unknown alert type';
+  end if;
+  if p_status not in ('active', 'resolved') then raise exception 'Unknown status'; end if;
+  if exists (select 1 from public.alerts where id = p_id) then
+    -- a guest may only cancel or resolve guest alerts; a member's emergency is resolved by members
+    update public.alerts set status = p_status, resolved_at = case when p_status = 'resolved' then now() else null end
+      where id = p_id and crew_code = 'NOVA-1' and from_user is null;
+    return;
+  end if;
+  if (select count(*) from public.alerts where crew_code = 'NOVA-1' and from_user is null and created_at > now() - interval '10 minutes') >= 10 then
+    raise exception 'Too many guest alerts — try again in a few minutes';
+  end if;
+  insert into public.alerts (id, crew_code, from_user, from_name, about_id, about_name, type, note, md, status, created_at, resolved_at)
+  values (p_id, 'NOVA-1', null, left(coalesce(nullif(p_from_name, ''), 'Guest'), 40) || ' (guest)', left(p_about_id, 80), left(coalesce(p_about_name, ''), 60),
+          p_type, left(coalesce(p_note, ''), 160), p_md, p_status, now(), case when p_status = 'resolved' then now() else null end);
+end $$;
+grant execute on function public.showcase_raise(uuid, text, text, text, text, text, int, text) to anon, authenticated;

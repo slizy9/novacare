@@ -343,6 +343,14 @@ const Engine = (() => {
     const adv = advisories();
     if (!adv.length) L.push('  None.');
     adv.forEach((a) => { L.push(`  [${LEVELS[a.level].name.toUpperCase()}] ${a.title} — ${a.detail}`); });
+    if (typeof Insight !== 'undefined') {
+      L.push(''); L.push('AGAINST PERSONAL BASELINE');
+      Insight.table().forEach((x) => { if (!x.base) return; const ind = IND[x.id];
+        L.push(`  ${ind.short.padEnd(16)} baseline ${fmt(ind, x.base.v)} (${x.base.src === 'preflight' ? 'pre-flight' : 'first week'})  normal ${fmt(ind, x.range[0])}-${fmt(ind, x.range[1])}  latest ${x.st.v == null ? '—' : fmt(ind, x.st.v)}${x.out ? '  OUTSIDE' : ''}`); });
+      L.push(''); L.push('FINDINGS AND DECISIONS');
+      Insight.findings().forEach((f) => L.push(`  [${f.rule}] ${f.title} — ${f.who}`));
+      Insight.history().slice(0, 15).forEach((d) => L.push(`  MD ${d.md} ${DECISION_ACTS[d.act]}: ${d.title} → ${d.outcome}`));
+    }
     L.push(''); L.push('Prototype output. Not a medical device.');
     return L.join('\n');
   }

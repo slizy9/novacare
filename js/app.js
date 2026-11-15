@@ -133,7 +133,7 @@ const PERSONAL = [
 ];
 const SUB_ALIAS = { status: 'overview', routine: 'today', vitals: 'vitals', hazards: 'hazards', overview: 'overview', today: 'today', medical: 'medical' };
 
-const LOGO = '<svg class="logo" viewBox="0 0 48 40" aria-hidden="true"><ellipse class="lg-ring" cx="24" cy="21" rx="21" ry="8" transform="rotate(-22 24 21)"/><path class="lg-plus" d="M19 5h10v10h10v10H29v10H19V25H9V15h10z"/><ellipse class="lg-ring" cx="24" cy="21" rx="21" ry="8" transform="rotate(-22 24 21)" pathLength="100" stroke-dasharray="50 50"/></svg>';
+const LOGO = '<svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><circle class="lg-o" cx="24" cy="24" r="19.5"/><path class="lg-ecg" d="M9.5 25h8l4.2-9 6 16.5 4.2-10.5 2.6 3H38.5"/></svg>';
 const SWOOSH = '<svg class="swoosh" viewBox="0 0 220 44" aria-hidden="true"><defs><linearGradient id="swg" x1="0" x2="1"><stop offset="0" stop-color="#ff4f9a" stop-opacity="0"/><stop offset="1" stop-color="#ff4f9a"/></linearGradient></defs><path d="M4 40C50 14 120 6 196 12" fill="none" stroke="url(#swg)" stroke-width="3" stroke-linecap="round"/><path d="M206 0c1.5 7 3.5 9 10 11-6.5 2-8.5 4-10 11-1.5-7-3.5-9-10-11 6.5-2 8.5-4 10-11z" fill="#ff4f9a"/></svg>';
 
 function renderTop() {
@@ -177,7 +177,7 @@ function viewLobby() {
   const day = Engine.today(); const done = checkinDone(day);
   const cta = locked
     ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
-    : `<button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>`; // Help is the red button on every page
+    : ''; // Questions, How do you feel and Add info are in the panel on the right; Help is the red button on every page
   // the check-in is offered, never forced: Start, or Not today
   const choice = locked ? '' : done
     ? `<div class="ci-choice ok">${icon('check')}<div><b>Check-in done</b><small>${Status.due() ? 'Quick status due' : 'Nothing else to fill in right now'}</small></div>${Status.due() ? `<button class="btn primary sm" data-act="status">How do you feel?</button>` : `<button class="btn quiet sm" data-act="checkin">Edit</button>`}</div>`
@@ -186,19 +186,18 @@ function viewLobby() {
       : `<div class="ci-choice">${icon('pulse')}<div><b>Do today’s check-in?</b><small>About a minute · one screen</small></div>
           <button class="btn quiet sm" data-act="skipcheckin">Not today</button><button class="btn primary sm" data-act="checkin">Start</button></div>`;
   // header in the style of the references: eyebrow, headline with an italic word, key numbers, a glass "live" panel
-  const hrS = Engine.series('hr').slice(-10); const hrNow = Engine.status('hr');
-  const spark = (() => { if (hrS.length < 2) return ''; const lo = Math.min(...hrS.map((p) => p.v)) - 3, hi = Math.max(...hrS.map((p) => p.v)) + 3;
-    const pts = hrS.map((p, k) => `${(k / (hrS.length - 1)) * 200},${50 - ((p.v - lo) / (hi - lo || 1)) * 44}`); return `<svg viewBox="0 0 200 54" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts.join(' ')}"/><circle cx="200" cy="${pts[pts.length - 1].split(',')[1]}" r="3.5"/></svg>`; })();
-  const stat = (n, l) => `<div class="hstat"><b class="num">${n}</b><span>${l}</span></div>`;
   const hero = `<section class="card hero lobby-hero">
       <div class="hero-main"><p class="lobby-clock" id="lobby-clock">${clockHtml()}</p>
         <h1 class="hero-title">${greeting()}${first ? `, <em>${esc(first)}.</em>` : '.'}</h1>
         ${lead}
         ${choice}
         <div class="hero-cta">${cta}</div></div>
-      ${locked ? '' : `<div class="hero-live"><div class="glass"><p class="glass-h"><span>Heart rate · recent</span><span class="live"><i></i>Live</span></p>
-        <p class="glass-v"><b class="num">${hrNow.v ?? '—'}</b> bpm</p>${spark || '<p class="muted small">Log a check-in to see your trend.</p>'}
-        <p class="glass-f">${hrNow.v != null ? `${levelText(hrNow.level)} · MD ${hrNow.md}` : 'No reading yet'}</p></div></div>`}
+      ${locked ? '' : `<div class="hero-live acts"><nav class="glass lobby-acts" aria-label="Your health">
+        <p class="glass-h"><span>Your health</span></p>
+        ${[['checkin', 'plus', 'Add info', done ? 'Check-in done · add more' : 'Today’s check-in · about a minute'],
+          ['status', 'checks', 'How do you feel', Status.due() ? 'Quick status is due' : 'Quick status · 30 seconds'],
+          ['ask', 'chat', 'Questions', 'Voice or text, works offline']].map(([act, ic, t, s]) => `<button class="la" data-act="${act}">${icon(ic)}<span><b>${t}</b><small>${s}</small></span>${icon('next', 'la-go')}</button>`).join('')}
+      </nav></div>`}
     </section>`;
   if (locked) return hero;
 
@@ -245,7 +244,7 @@ function viewLobby() {
         <div class="lm-acts"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></section>`;
   }
   // most important first: you today and your plan, then the crew, then the first-visit guide and what is ahead
-  return hero + coachCard({ space: true, compact: true }) + `<div class="lobby-grid">${today}${mission}</div>` + guideHtml() + predictCard(Predict.all(), { limit: 2, more: true, space: true });
+  return hero + `<div class="lobby-grid">${today}${mission}</div>` + guideHtml();
 }
 
 /* First visit: the three things to know, in plain words. Hidden for good with "Got it". */
@@ -329,7 +328,7 @@ function overviewTop() {
         }).join('')}</ul></section>
     </div>
     <section class="card ov-health"><h2>Health</h2>
-      ${item('checkin', '', 'plus', 'Add info')}${item('status', '', 'checks', 'How do you feel')}${item('ask', '', 'chat', 'Questions')}${item('sub', 'vitals', 'pulse', 'Vitals')}${item('sub', 'today', 'calendar', 'Routine')}${item('sub', 'hazards', 'hazard', 'Hazards')}${item('sub', 'medical', 'care', 'Medical profile')}${item('bodystatus', '', 'layers', 'Body Status')}</section>
+      ${item('sub', 'vitals', 'pulse', 'Vitals')}${item('sub', 'today', 'calendar', 'Routine')}${item('sub', 'hazards', 'hazard', 'Hazards')}${item('sub', 'medical', 'care', 'Medical profile')}${item('bodystatus', '', 'layers', 'Body Status')}</section>
     <section class="card ov-body" id="systems"><div class="ov-holo">${bodyModel(sel)}</div>
       <div class="ov-sys" aria-live="polite">${sys
         ? `<div class="ov-sys-h"><h2>${esc(sys.name)}</h2>${pill(Engine.systemLevel(sel))}</div>
@@ -408,27 +407,12 @@ function savePhoto(file) {
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
 
 function viewStatus() {
-  const env = Engine.env(); const score = Engine.readiness(); const due = Engine.dueList(); const adv = Engine.advisories();
-  const dose = Engine.cumulativeDose();
+  const score = Engine.readiness(); const adv = Insight.findings();
   const need = adv.filter((a) => a.level >= 2).length, watch = adv.filter((a) => a.level === 1).length;
   const summary = score == null ? 'Log your first check-in to see how you are doing.'
     : need ? `${need} ${need > 1 ? 'things need' : 'thing needs'} your attention today.`
     : watch ? `You’re on track, with ${watch} small ${watch > 1 ? 'things' : 'thing'} to watch.` : 'You’re on track. Nothing needs action today.';
-  const done = checkinDone(Engine.today());
-  return overviewTop() + coachCard() + `<section class="card hero">
-      <div class="hero-main">
-        <h2 class="hero-title">${summary}</h2>
-        <div class="hero-cta">${!done
-          ? `<button class="btn primary lg" data-act="checkin">${icon('plus')}Start check-in <span class="btn-note">~1 min</span></button>`
-          : `<div class="alldone">${icon('check')}Today’s check-in is done</div>`}</div>
-        <dl class="hero-facts">
-          <div><dt>Location</dt><dd>${env.short}</dd></div>
-          <div><dt>Ground link</dt><dd>${env.comm.split(/[,(]/)[0]}</dd></div>
-          <div><dt>Radiation</dt><dd><span class="num">${dose.toFixed(0)}</span> of ${CAREER_DOSE_LIMIT} mSv<span class="meter"><i style="width:${clamp((dose / CAREER_DOSE_LIMIT) * 100, 1, 100)}%"></i></span></dd></div>
-        </dl>
-      </div>
-      <div class="hero-ring">${ring(score)}</div>
-    </section>`;
+  return overviewTop() + careCard();
 }
 
 function viewVitals() {
@@ -586,6 +570,8 @@ function quickHtml(m) {
         ${bp}${['hr', 'spo2', 'temp'].map((id) => quickField(id, d)).join('')}</section>
       ${m.more.length ? `<details class="qsec more" ${m.more.some((id) => d[id] != null) ? 'open' : ''}><summary><h3>More</h3><span class="muted small">${m.more.length} optional · ${m.more.map((id) => IND[id].short).join(', ')}</span></summary>
         ${m.more.map((id) => quickField(id, d)).join('')}</details>` : ''}
+      <section class="qsec"><h3>Vitals measured by</h3>
+        <div class="seg">${['self', 'device', 'exam'].map((k) => `<button class="${(m.src || 'self') === k ? 'on' : ''}" data-act="qsrc" data-v="${k}" aria-pressed="${(m.src || 'self') === k}">${READING_SRC[k].name}</button>`).join('')}</div></section>
       <p class="muted small">Fill what you have. Empty fields are skipped.</p>
     </div>
     <footer><button class="btn ghost lg" data-act="close">Later</button>
@@ -610,18 +596,18 @@ function evidenceHtml(id, compact) {
 }
 
 function doneHtml(m) {
-  const g = Engine.game(); const adv = Engine.advisories(); const score = Engine.readiness();
-  const top = adv[0];
+  const g = Engine.game(); const score = Engine.readiness(); Care.sync();
+  const fresh = Care.open().filter((c) => c.status === 'new'); const follow = Care.open().length - fresh.length; const adv = fresh; const top = fresh[0];
   return `<div class="sheet narrow" role="dialog" aria-modal="true" aria-label="Check-in complete">
     <header><div><h2>Saved</h2><p class="sub">${m.count} reading${m.count === 1 ? '' : 's'} · +${g.todayXp} XP today${g.streak ? ` · ${g.streak}-day streak` : ''}</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
       <div class="done-top">${ring(score)}</div>
       ${(() => { const f = Coach.feedback(); return f ? `<p class="done-win">${icon('check')}${esc(f)}</p>` : ''; })()}
-      ${top ? `<div class="done-next ${lc(top.level)}"><span class="dot"></span><div><b>${esc(top.title)}</b><p>${esc(top.actions[0] || '')}</p></div></div>
-        ${adv.length > 1 ? `<p class="muted small center">+${adv.length - 1} more in your health page</p>` : ''}`
+      ${top ? `<div class="done-next ${lc(top.level)}"><span class="dot"></span><div><b>${fresh.length} new recommendation${fresh.length > 1 ? 's' : ''}</b><p>Sent to your notifications (the bell). Open ${fresh.length > 1 ? 'them' : 'it'} when you are ready.</p></div></div>
+        ${follow ? `<p class="muted small center">${follow} other${follow > 1 ? 's' : ''} still in follow-up</p>` : ''}`
         : '<p class="center">Everything is in range. Nice work.</p>'}
     </div>
-    <footer>${top ? `<button class="btn ghost lg" data-act="close">Done</button><button class="btn primary lg" data-act="gostatus">See what to do</button>` : '<button class="btn primary lg save-big" data-act="close">Done</button>'}</footer>
+    <footer>${top ? `<button class="btn ghost lg" data-act="close">Done</button><button class="btn primary lg" data-act="case" data-v="${esc(top.id)}">Open now</button>` : '<button class="btn primary lg save-big" data-act="close">Done</button>'}</footer>
   </div>`;
 }
 
@@ -636,6 +622,7 @@ function detailHtml(id) {
       <div class="d-top"><div class="d-val ${lc(st.level)}">${valueText(ind, st.v)}</div><div class="d-side">${pill(st.level)}<span class="muted">${targetText(ind)}</span></div>
         <button class="btn primary" data-act="log" data-id="${id}">Log reading</button></div>
       ${rangeBar(ind, st.v)}
+      ${Insight.compareLine(id) ? `<p class="muted">${esc(Insight.compareLine(id))}</p>` : ''}
       <div class="seg">${rb(7, '7 days')}${rb(14, '14 days')}${rb(30, '30 days')}${rb(0, 'All')}</div>
       ${chart(ind, ui.range)}
       ${adv.map((a) => advisoryHtml(a, true, true)).join('')}
@@ -643,7 +630,7 @@ function detailHtml(id) {
       <div class="d-cols">
         <div><h3>How to measure</h3><ol>${ind.how.map((x) => `<li>${x}</li>`).join('')}</ol></div>
         <div><h3>Why it matters</h3><p>${ind.why}</p><h3>In space</h3><p>${ind.space}</p></div>
-        <div><h3>Recent readings</h3>${s.length ? `<table>${s.map((p) => { const l = Engine.classify(ind, p.v).level; return `<tr><td>MD ${p.md}</td><td>${Engine.fmt(ind, p.v)} ${ind.unit} ${Engine.label(ind, p.v)}</td><td class="${lc(l)}">${LEVELS[l].sym} ${LEVELS[l].name}</td></tr>`; }).join('')}</table>` : '<p class="muted">None yet.</p>'}</div>
+        <div><h3>Recent readings</h3>${s.length ? `<table>${s.map((p) => { const l = Engine.classify(ind, p.v).level; return `<tr><td>MD ${p.md}</td><td>${Engine.fmt(ind, p.v)} ${ind.unit} ${Engine.label(ind, p.v)}${Insight.srcOf(p.md, id) !== 'self' ? ` <small class="muted">· ${READING_SRC[Insight.srcOf(p.md, id)].short.toLowerCase()}</small>` : ''}</td><td class="${lc(l)}">${LEVELS[l].sym} ${LEVELS[l].name}</td></tr>`; }).join('')}</table>` : '<p class="muted">None yet.</p>'}</div>
       </div>
     </div></div>`;
 }
@@ -667,7 +654,8 @@ function settingsHtml() {
         ${row('Notifications', perm === 'unsupported' ? '<span class="muted small">Not available</span>' : perm === 'denied' ? '<span class="set-ok l2">Blocked in the browser</span>'
           : notif ? '<button class="btn ghost sm" data-act="remoff">Turn off</button>' : '<button class="btn primary sm" data-act="remon">Turn on</button>',
           notif ? 'On — emergencies sound and show even with NovaCare in the background.' : 'Turn on so a crewmate’s emergency reaches you with the app closed.')}
-        ${row('Test the alarm', '<button class="btn ghost sm" data-act="testalarm">Play</button>', 'Check the sound and vibration of an emergency.')}`)}
+        ${row('Test the alarm', '<button class="btn ghost sm" data-act="testalarm">Play</button>', 'Check the sound and vibration of an emergency.')}
+        ${row('Alert my crew if I do not answer', `<label class="switch"><input type="checkbox" id="set-auto" ${autoAlertOn() ? 'checked' : ''}><span></span></label>`, `After a critical reading NovaCare asks if you are OK, and calls your crew after ${WELFARE_SECONDS} seconds without an answer.`)}`)}
       ${sec('care', 'Your medical profile', `
         ${row('Allergies', al.length ? al.map((x) => `<span class="alg-chip">${esc(x)}</span>`).join(' ') : '<span class="set-ok l1"><span class="dot"></span>None recorded</span>', 'Your crew sees this in an emergency.')}
         ${row('Blood type · medication · conditions', `<button class="btn ${Medical.empty(prof) ? 'primary' : 'ghost'} sm" data-act="sub" data-v="medical">${Medical.empty(prof) ? 'Fill in' : 'Edit'}</button>`,
@@ -685,6 +673,8 @@ function settingsHtml() {
         ${row('“How do you feel?” every', `<select id="set-every" class="text" aria-label="How often">${STATUS_EVERY.map((h) => `<option value="${h}" ${Status.every() === h ? 'selected' : ''}>${h} hours</option>`).join('')}</select>`, 'Only after your daily check-in.')}`)}
       ${sec('cloud', 'Data & sync', `
         ${row('Sync', `<span class="set-ok ${sc}"><span class="dot"></span>${esc(sl)}</span> ${Auth.cloud() ? '<button class="btn ghost sm" data-act="syncnow">Sync now</button>' : ''}`, esc(stip))}
+        ${(() => { const r = Autonomy.last(); return row('Works without Earth', `${r ? `<span class="set-ok ${r.independent ? 'l0' : 'l2'}"><span class="dot"></span>${r.passed} of ${r.total} checks passed</span> ` : ''}<button class="btn ghost sm" data-act="selftest">${r ? 'Test again' : 'Run the test'}</button>`,
+          r ? Object.values(r.res).filter((x) => !x.ok).map((x) => esc(x.text)).join(' · ') || `Medical records, medication rules, protocols and analysis all run on this device${r.online ? '' : ' — tested with no link'}. The link to Earth is only used to sync and update.` : 'Checks that the medical functions work on this device alone, with no link to Earth.'); })()}
         ${row('For your flight surgeon', '<button class="btn ghost sm" data-act="report">Health report</button> <button class="btn ghost sm" data-act="export">Raw data</button>')}`)}
       ${sec('user', 'Account & display', `
         ${row('Profile photo', `<span class="avatar lg ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : esc(initials(state.name || u.name))}</span>
@@ -777,6 +767,7 @@ function authHtml() {
         <button type="button" class="btn ghost big guest-btn" data-act="guest">${icon('user')}Enter as guest</button>`}
         ${connNote(reg)}
       </div>
+      ${reg ? '' : '<p class="auth-switch"><button type="button" class="link" data-act="firstaid">Emergency? Instructions now, no sign-in</button></p>'}
       <p class="auth-switch">${reg ? 'Already have an account? <button type="button" class="link" data-act="authtab" data-v="login">Sign in</button>'
         : 'No account? <button type="button" class="link" data-act="authtab" data-v="register">Register</button>'}</p>
     </div></section>`;
@@ -794,8 +785,9 @@ function renderAuth() {
   const top = $('#top'); document.body.classList.add('signed-out'); $('#nav').innerHTML = ''; $('#banner').innerHTML = '';
   top.innerHTML = `<div class="brand">${LOGO}<div><b>NovaCare</b></div></div>`;
   $('#app').innerHTML = authHtml();
-  ui.modal = null; renderModal(); renderSos(); renderTakeover();
-  const first = $('#auth-form input'); if (first) first.focus();
+  if (!(ui.modal && ui.modal.type === 'firstaid')) ui.modal = null;
+  renderModal(); renderSos(); renderTakeover();
+  const first = $('#auth-form input'); if (first && !ui.modal) first.focus();
 }
 
 async function submitAuth(form) {
@@ -874,7 +866,7 @@ function render() {
   if (!Auth.user()) { lastPage = ''; renderAuth(); return; }
   document.body.classList.remove('signed-out');
   if (Engine.calendarDay()) Engine.save();
-  Engine.today(); Crew.refresh();
+  Engine.today(); Crew.refresh(); Care.sync();
   if (Missions.locked() && !['lobby', 'mission'].includes(ui.view)) ui.view = 'lobby';
   // Nothing pops up by itself: pending tasks become reminders (bell + notification).
   if (!ui.remTicked) { ui.remTicked = true; Reminders.tick(true); } // silent on opening: the person decides what to do first
@@ -912,7 +904,7 @@ function renderModal() {
   if (!m) { el.hidden = true; el.innerHTML = ''; el.dataset.key = ''; el.classList.remove('out'); document.body.classList.remove('lock'); return; }
   el.hidden = false; document.body.classList.add('lock');
   el.innerHTML = m.type === 'quick' ? quickHtml(m) : m.type === 'measure' ? measureHtml(m) : m.type === 'done' ? doneHtml(m) : m.type === 'detail' ? detailHtml(m.id) : m.type === 'reauth' ? reauthHtml() : m.type === 'mate' ? mateHtml(m.id) : m.type === 'emergency' ? emergencyHtml(m)
-    : m.type === 'reminders' ? remindersHtml() : m.type === 'help' ? helpHtml(m) : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
+    : m.type === 'reminders' ? remindersHtml() : m.type === 'help' ? helpHtml(m) : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'case' ? caseHtml(m) : m.type === 'welfare' ? welfareHtml(m) : m.type === 'firstaid' ? firstAidHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
   const key = m.type + (m.step || '') + (m.i ?? '');
   el.classList.toggle('fresh', el.dataset.key !== key); el.dataset.key = key;
   tickTimer();
@@ -958,15 +950,22 @@ function stepValid(m) {
 function saveQuick() {
   const m = ui.modal; if (!stepValid(m)) return;
   const day = Engine.today(); let n = 0;
-  Object.keys(m.draft).forEach((id) => { const v = m.draft[id]; if (v == null) return; day.vals[id] = +(+v).toFixed(IND[id].dec); n++; });
+  const saved = [];
+  Object.keys(m.draft).forEach((id) => { const v = m.draft[id]; if (v == null) return; const val = +(+v).toFixed(IND[id].dec);
+    // provenance: a value copied with "Same as last time" and left as it was was not measured again
+    const carried = m.carried && m.carried[id] === val;
+    Insight.setSrc(day, id, carried ? 'carried' : QUICK_FEEL.includes(id) ? 'self' : (m.src || 'self')); if (day.ok) delete day.ok[id];
+    day.vals[id] = val; saved.push(id); n++; });
   day.checkinAt = new Date().toISOString(); delete day.skipCheckin;
   Engine.save(); Crew.refresh(true);
+  Care.sync(); Reminders.tick();
+  if (welfareCheck(saved, { type: 'done', count: n })) return;
   ui.modal = { type: 'done', count: n }; render();
 }
 /* Fill the empty vitals with the last reading, for days when nothing changed. */
 function fillLast() {
   const m = ui.modal; let n = 0;
-  [...QUICK_FEEL, ...QUICK_VITALS].forEach((id) => { if (m.draft[id] == null) { const st = Engine.status(id); if (st.v != null) { m.draft[id] = st.v; n++; } } });
+  [...QUICK_FEEL, ...QUICK_VITALS].forEach((id) => { if (m.draft[id] == null) { const st = Engine.status(id); if (st.v != null) { m.draft[id] = st.v; (m.carried = m.carried || {})[id] = st.v; n++; } } });
   renderModal(); toast(n ? `${n} filled with your last readings — change any that differ` : 'No earlier readings to copy yet');
 }
 function syncSave() { const b = $('#save'); if (b && ui.modal) b.disabled = !stepValid(ui.modal); }
@@ -992,7 +991,71 @@ function tickTimer() {
   upd(); window.__emTimer = setInterval(upd, 1000);
 }
 
+/* A critical reading starts "Are you OK?": silence alerts the crew. */
+function welfareCheck(ids, next) {
+  if (!autoAlertOn()) return false;
+  const items = ids.filter((id) => IND[id] && !SHIP_READINGS.includes(id)).map((id) => ({ id, v: Engine.today().vals[id] })).filter((x) => x.v != null && Engine.classify(IND[x.id], x.v).level >= 3);
+  if (!items.length) return false;
+  ui.modal = { type: 'welfare', items, until: Date.now() + WELFARE_SECONDS * 1000, next }; render();
+  Voice.speak(`Critical reading: ${items.map((x) => IND[x.id].short).join(' and ')}. Are you OK? Answer, or I will alert your crew in ${WELFARE_SECONDS} seconds.`);
+  return true;
+}
+setInterval(() => {
+  const m = ui.modal; if (!m || m.type !== 'welfare' || m.sent) return;
+  const left = Math.ceil((m.until - Date.now()) / 1000); const el = $('#wf-left'); if (el) el.textContent = Math.max(0, left);
+  if (left > 0) return;
+  const me = Crew.members()[0]; const what = m.items.map((x) => `${IND[x.id].short} ${Engine.fmt(IND[x.id], x.v)} ${IND[x.id].unit}`).join(', ');
+  m.sent = Crew.raise(me, 'help', `Automatic alert: critical reading (${what}) and no answer for ${WELFARE_SECONDS} s`).id;
+  render(); Voice.speak('I have alerted your crew. Help is coming.'); toast(alertSentMsg('alert'));
+}, 1000);
+const stopSpeech = () => { try { speechSynthesis.cancel(); } catch (e) { /* no speech */ } };
+/* Hands busy: the steps read aloud, from the first one not done yet. */
+function speakSteps(m) {
+  if (m.speaking) { m.speaking = false; stopSpeech(); renderModal(); return; }
+  if (!('speechSynthesis' in window)) { toast('Reading aloud is not available in this browser'); return; }
+  const e = EMG[m.em]; if (!e) return;
+  const from = Math.max(0, e.steps.findIndex((s, k) => !m.done[k]));
+  m.speaking = true; renderModal();
+  Voice.speak(e.steps.slice(from).map((s, k) => `Step ${from + k + 1}. ${s}`).join(' '));
+}
+
 const actions = {
+  case(d) { const id = d.v || d.id; if (!Care.get(id)) { toast('This follow-up is closed'); return; } Care.seen(id); ui.modal = { type: 'case', id }; render(); },
+  casedid(d) { const c = Care.get(d.id); Care.act(d.id, 'Did the recommended steps'); Insight.decide(c.key, 'done'); ui.modal = null; render(); toast('Recorded — NovaCare will check at your next measurement'); },
+  casemeasure(d) { const c = Care.get(d.id); Care.act(d.id, 'Measured again'); Care.measured(d.id); ui.modal = null; actions.log({ id: c.ind }); },
+  casedischarge(d) {
+    const c = Care.get(d.id); const by = Protocols.signer();
+    if (!by) { // not the medical officer: the request goes to the crew, and the officer signs on their own device
+      Crew.raise(Crew.members()[0], 'assist', `Discharge review: ${c.title}`.slice(0, 160)); Care.act(d.id, 'Asked the Crew Medical Officer to review the discharge');
+      ui.modal = null; render(); toast('Sent — the Crew Medical Officer reviews it from your card on their device'); return;
+    }
+    if (!confirm(`Discharge “${c.title}”?\n\nSigned as ${by}. NovaCare opens a new case if it comes back.`)) return;
+    Care.discharge(d.id, by); ui.modal = null; render(); toast('Discharged — it stays in your record and the mission log');
+  },
+  matedischarge(d) {
+    const m = Crew.members().find((x) => x.id === d.id); const c = m && (m.care || []).find((x) => x.id === d.v); const by = Protocols.signer(); if (!c || !by) return;
+    if (!confirm(`Discharge “${c.title}” for ${m.name}?\n\nSigned as ${by}. It closes on their device the next time it syncs.`)) return;
+    Crew.record(m, 'care', c.id, by); renderModal(); toast(`Discharge signed for ${m.name.split(' ')[0]} — it reaches their device with the next sync`);
+  },
+  insdo(d) { const r = Insight.decide(d.key, d.v); render(); if (r) toast('Recorded — NovaCare will check whether it helped'); },
+  insconfirm(d) { const f = Insight.findings().find((x) => x.key === 'u-' + d.id); Insight.confirm(d.id); Insight.decide('u-' + d.id, 'confirm', f); Engine.save(); Crew.refresh(true); render(); toast('Reading confirmed — it now counts'); },
+  inscrew(d) {
+    const f = Insight.findings().find((x) => x.key === d.key); if (!f) return;
+    if (!confirm(`Tell your crew about this?\n\n“${f.title}”\n\nEveryone on your mission gets a non-urgent request to check on you.`)) return;
+    Crew.raise(Crew.members()[0], 'assist', `${f.title} — ${f.detail}`.slice(0, 160)); Insight.decide(d.key, 'crew', f); render(); toast(alertSentMsg('help request'));
+  },
+  insask(d) { ui.modal = { type: 'ask', chat: [], speak: false }; renderModal(); askNow(d.q); },
+  gofind() { ui.modal = null; ui.view = 'personal'; ui.sub = 'overview'; ui.sys = null; render(); const el = $('#findings') || $('.hero'); if (el) el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' }); },
+  qsrc(d) { ui.modal.src = d.v; document.querySelectorAll('#modal [data-act="qsrc"]').forEach((b) => { const on = b.dataset.v === d.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); },
+  async selftest() { toast('Testing the onboard systems…'); await Autonomy.run(); if (ui.modal && ui.modal.type === 'settings') renderModal(); },
+  wfok() { const m = ui.modal; stopSpeech(); if (m.sent) Crew.resolve(m.sent); ui.modal = m.next || null; render(); toast(m.sent ? 'Good — the alert to your crew was cancelled' : 'Good. Measure again to confirm the reading'); },
+  wfhelp() { const m = ui.modal; stopSpeech(); const me = Crew.members()[0]; ui.modal = { type: 'emergency', step: 'pick', id: me.id, name: me.name, done: {}, fromHelp: m.sent || undefined }; renderModal(); },
+  firstaid() { ui.modal = { type: 'firstaid', done: {} }; renderModal(); },
+  fatype(d) { const m = ui.modal; m.em = d.v; m.done = {}; m.start = m.start || new Date().toISOString(); renderModal(); },
+  fastep(d) { const m = ui.modal; m.done[d.k] = !m.done[d.k]; renderModal(); },
+  faback() { const m = ui.modal; m.em = null; m.speaking = false; stopSpeech(); renderModal(); },
+  emgspeak() { speakSteps(ui.modal); },
+  emgself() { const me = Crew.members()[0]; ui.helpBack = null; ui.modal = { type: 'emergency', step: 'pick', id: me.id, name: me.name, done: {} }; renderModal(); },
   alladv() { ui.allAdv = !ui.allAdv; render(); },
   allfind() { ui.allFind = !ui.allFind; render(); },
   coachdone(d) { const on = Coach.markDone(d.v); render(); if (on) toast('Nice — logged for today. Small steps add up.'); },
@@ -1006,19 +1069,19 @@ const actions = {
   emgtype(d) {
     const m = ui.modal; const mate = Crew.members().find((x) => x.id === m.id) || { id: m.id, name: m.name };
     if (m.alertId) { // switching protocol keeps the same alert
-      Crew.writeAlerts(Crew.alerts().map((a) => a.id === m.alertId ? { ...a, type: d.v, pending: Auth.cloud() } : a)); Sync.run();
+      Crew.writeAlerts(Crew.alerts().map((a) => a.id === m.alertId ? { ...a, type: d.v, pending: Crew.shared() } : a)); Sync.run();
     } else m.alertId = Crew.raise(mate, d.v, m.text || '').id;
-    m.step = 'protocol'; m.em = d.v; m.done = {};
+    m.step = 'protocol'; m.em = d.v; m.done = {}; m.speaking = false; emgPersist(m);
     render(); toast(alertSentMsg('emergency'));
   },
-  emgstep(d) { const m = ui.modal; m.done[d.k] = !m.done[d.k]; renderModal(); },
+  emgstep(d) { const m = ui.modal; m.done[d.k] = m.done[d.k] ? null : new Date().toISOString(); emgPersist(m); renderModal(); },
   emgswitch() { ui.modal.step = 'pick'; renderModal(); },
-  emgresolve() { if (ui.modal.alertId) Crew.resolve(ui.modal.alertId); if (ui.modal.fromHelp) Crew.resolve(ui.modal.fromHelp); ui.modal = null; render(); toast('Emergency marked resolved'); },
+  emgresolve() { emgRecord(ui.modal); stopSpeech(); if (ui.modal.alertId) Crew.resolve(ui.modal.alertId); if (ui.modal.fromHelp) Crew.resolve(ui.modal.fromHelp); ui.modal = null; render(); toast('Emergency resolved — what was done is in the mission log'); },
   emgopen(d) {
     const a = Crew.alerts().find((x) => x.id === d.id); if (!a) return;
     // a help request opens the emergency flow for that person, with what they wrote, so the helper can describe or pick the situation
     if (HELP_TYPES[a.type]) { ui.modal = { type: 'emergency', step: 'pick', id: a.aboutId, name: a.aboutName, text: a.note || '', done: {}, fromHelp: a.id }; renderModal(); return; }
-    ui.modal = { type: 'emergency', step: 'protocol', id: a.aboutId, name: a.aboutName, alertId: a.id, em: a.type, done: {} }; renderModal();
+    ui.modal = emgRestore({ type: 'emergency', step: 'protocol', id: a.aboutId, name: a.aboutName, alertId: a.id, em: a.type, done: {} }); renderModal();
   },
   help() { ui.helpBack = ui.modal && ui.modal.type !== 'help' ? ui.modal : null; ui.modal = { type: 'help', urgent: true, why: [] }; renderModal(); },
   guidedone() { state.guideDone = true; Engine.save(); render(); },
@@ -1031,7 +1094,17 @@ const actions = {
   takeack(d) { ackAlert(d.id); renderTakeover(); toast('Seen — the alert stays in the red bar until it is resolved'); },
   helpurg(d) { ui.modal.urgent = d.v === '1'; renderModal(); },
   helpwhy(d) { const w = ui.modal.why; ui.modal.why = w.includes(d.v) ? w.filter((x) => x !== d.v) : [...w, d.v]; renderModal(); },
-  emgdone(d) { if (!confirm('Mark this emergency as resolved for the whole crew?')) return; Crew.resolve(d.id); render(); toast('Emergency marked resolved'); },
+  emgdone(d, el) {
+    const a = Crew.alerts().find((x) => x.id === d.id); if (!a) return;
+    const own = HELP_TYPES[a.type] && fromMe(a);
+    if (Auth.user().guest && !fromMe(a) && !String(a.fromId).startsWith('guest:')) { toast('Only crew members can resolve a crew member’s emergency'); return; }
+    if (!own && el && el.dataset.armed !== '1') { // a second tap confirms; nothing is resolved by accident
+      el.dataset.armed = '1'; const was = el.textContent; el.textContent = 'Tap again to resolve';
+      setTimeout(() => { if (el.isConnected) { el.dataset.armed = ''; el.textContent = was; } }, 4000); return;
+    }
+    Crew.resolve(d.id); if (ui.modal && ui.modal.type === 'help') ui.modal = null; render();
+    toast(own ? 'Request cancelled — your crew sees that you are OK' : 'Resolved for the whole crew');
+  },
   togglesim() { state.showSim = true; Engine.save(); Crew.refresh(true); render(); },
   mreport() { download(`novacare-mission-${Auth.user().crew}-MD${state.md}.txt`, missionReport(), 'text/plain'); },
   authtab(d) { ui.auth = d.v; ui.authErr = ''; ui.resetSent = ''; renderAuth(); },
@@ -1135,7 +1208,7 @@ const actions = {
   log(d) { openMeasure([CHECKIN_GROUPS.find((g) => g.includes(d.id))], false); },
   checkin() { startCheckin(); },
   close() {
-    const el = $('#modal'); if (!ui.modal || el.classList.contains('out')) return;
+    const el = $('#modal'); if (!ui.modal || el.classList.contains('out') || ui.modal.type === 'welfare') return; // "Are you OK?" needs an answer
     if (!reduceMotion()) { el.classList.add('out'); setTimeout(() => actions.close2(), 160); return; }
     actions.close2();
   },
@@ -1164,8 +1237,11 @@ const actions = {
     const m = ui.modal; if (m && m.type === 'quick') { saveQuick(); return; }
     if (!stepValid(m)) return;
     const day = Engine.today();
-    m.steps[m.i].forEach((id) => { day.vals[id] = +(+m.draft[id]).toFixed(IND[id].dec); m.count++; });
-    Engine.save(); advanceMeasure(m);
+    const ids = m.steps[m.i];
+    ids.forEach((id) => { day.vals[id] = +(+m.draft[id]).toFixed(IND[id].dec); Insight.setSrc(day, id, 'self'); if (day.ok) delete day.ok[id]; m.count++; });
+    Engine.save(); Care.sync(); Reminders.tick();
+    if (welfareCheck(ids, m.i >= m.steps.length - 1 && m.guided ? { type: 'done', count: m.count } : null)) return;
+    advanceMeasure(m);
   },
   skip() { advanceMeasure(ui.modal); },
   task(d) {
@@ -1208,7 +1284,7 @@ function setupGuest() {
 
 /* Loading the demo or restarting replaces the readings, never the person's missions, profile or name. */
 function keepAccount(next) {
-  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays', 'updateEvery', 'log', 'photo', 'guideDone'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
+  ['missions', 'archive', 'profile', 'autoAlert', 'decisions', 'showSim', 'missionName', 'missionDays', 'updateEvery', 'log', 'photo', 'guideDone'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
   if (state && state.name) next.name = state.name;
   return next;
 }
@@ -1328,6 +1404,7 @@ document.addEventListener('change', (ev) => {
   if (ev.target.id === 'photo-file' && ev.target.files[0]) savePhoto(ev.target.files[0]);
   if (ev.target.id === 'set-env') { state.env = ev.target.value; Engine.save(); render(); toast(`Location: ${ENVIRONMENTS[state.env].short}`); }
   if (ev.target.id === 'set-dark') { const t = ev.target.checked ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try { localStorage.setItem('novacare.theme', t); } catch (e) { /* ignore */ } renderTop(); }
+  if (ev.target.id === 'set-auto') { state.autoAlert = ev.target.checked; Engine.save(); toast(state.autoAlert ? 'On — NovaCare alerts your crew if you do not answer' : 'Off — NovaCare will not alert the crew by itself'); }
   if (ev.target.id === 'set-sim') { state.showSim = ev.target.checked; Engine.save(); Crew.refresh(true); render(); }
 });
 
@@ -1336,7 +1413,7 @@ setInterval(() => { if (Auth.user()) { $('#banner').innerHTML = bannerHtml(); re
 /* Where an alert can reach: the crew through the database, or only this device (guest, no mission, no database). */
 function alertReach() {
   const u = Auth.user();
-  if (!Auth.cloud()) return u && u.guest ? 'guest' : 'local';
+  if (!Auth.cloud()) return u && u.guest ? (Crew.shared() ? 'cloud' : 'guest') : 'local';
   return u.crew ? 'cloud' : 'nomission';
 }
 function alertSentMsg(kind) {

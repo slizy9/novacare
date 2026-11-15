@@ -102,6 +102,7 @@ function mateHtml(id) {
     <div class="sheet-b">
       <div class="fields">
         <section>${medHistoryHtml(m, true)}</section>
+        ${(m.care || []).length ? `<section><h3>In follow-up</h3><ul class="adv-mini">${m.care.map((c) => `<li class="${lc(c.status === 'review' || c.status === 'clearing' ? 0 : c.level)}">${mark(c.status === 'review' || c.status === 'clearing' ? 0 : c.level)}<div><b>${esc(c.title)}</b><small>${esc(c.stage)}</small></div>${!m.me && !m.sim && Protocols.signer() ? `<button class="btn ${c.status === 'review' ? 'primary' : 'ghost'} sm" data-act="matedischarge" data-id="${esc(m.id)}" data-v="${esc(c.id)}">Discharge</button>` : ''}</li>`).join('')}</ul></section>` : ''}
         <section><h3>Body systems</h3><ul class="sys-mini">${SYSTEMS.map((s) => `<li class="${lc(m.systems[s.id])}">${mark(m.systems[s.id])}${s.name}<span>${levelText(m.systems[s.id])}</span></li>`).join('')}</ul></section>
         <section><h3>Advisories</h3>${m.advisories.length ? `<ul class="adv-mini">${m.advisories.map((a) => `<li class="${lc(a.level)}">${mark(a.level)}<div><b>${esc(a.title)}</b><small>${esc(a.detail)}</small></div><span class="pill ${lc(a.level)}">${esc(a.who)}</span></li>`).join('')}</ul>` : '<p class="muted">Nothing active.</p>'}</section>
       </div>
@@ -115,6 +116,22 @@ function mateHtml(id) {
 }
 
 /* ---------- Emergency ---------- */
+/* The emergency record: which steps were done and when. Kept with the alert while it is open,
+   so closing the window loses nothing, and saved to the mission log when it is resolved. */
+function emgPersist(m) { if (!m.alertId || !state) return; state.emgOpen = state.emgOpen || {}; state.emgOpen[m.alertId] = { done: m.done, em: m.em }; Engine.save(); }
+function emgRestore(m) { const r = state && state.emgOpen && state.emgOpen[m.alertId]; if (r && r.em === m.em) m.done = r.done || {}; return m; }
+function emgRecord(m) {
+  if (!m || !m.em || !EMG[m.em]) return;
+  const e = EMG[m.em]; const alert = Crew.alerts().find((a) => a.id === m.alertId); const end = new Date().toISOString();
+  const steps = e.steps.map((s, k) => ({ k, at: typeof m.done[k] === 'string' ? m.done[k] : null })).filter((x) => x.at);
+  const asked = (m.ask || []).map((x) => x.q);
+  state.emgLog = [...(Array.isArray(state.emgLog) ? state.emgLog : []), { id: m.alertId || end, name: e.name, patient: m.name || 'Crew member', rescuer: state.name || Auth.user().name,
+    md: state.md, start: alert ? alert.createdAt : end, end, total: e.steps.length,
+    steps: steps.map((x) => `${x.k + 1} at ${new Date(x.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`), asked }].slice(-50);
+  if (state.emgOpen) delete state.emgOpen[m.alertId];
+  Engine.save();
+}
+
 function emergencyHtml(md) {
   const all = Crew.members(); const i = all.findIndex((m) => m.id === md.id); const m = all[i] || { name: md.name || 'Crew member', latest: {}, advisories: [], systems: {}, med: null, id: md.id };
   const env = Engine.env();
@@ -143,13 +160,14 @@ function emergencyHtml(md) {
   rel.forEach(({ id, l }) => { if (l.v != null && l.level >= 2) hints.push(`${IND[id].short} was ${Engine.fmt(IND[id], l.v)} ${IND[id].unit} on MD ${l.md} — ${levelText(l.level).toLowerCase()}.`); });
   m.advisories.filter((a) => a.level >= 2).slice(0, 3).forEach((a) => hints.push(`Active finding: ${a.title}.`));
   return `<div class="sheet emg" role="dialog" aria-modal="true" aria-label="Emergency protocol">
-    <header class="emg-h"><span class="emg-ic">${icon(e.icon)}</span><div class="grow"><h2>${e.name}</h2><p class="small">${esc(m.name)} · started <span id="em-timer" class="num" data-start="${alert ? alert.createdAt : new Date().toISOString()}">0:00</span> ago</p></div>
+    <header class="emg-h"><span class="emg-ic">${icon(e.icon)}</span><div class="grow"><h2>${e.name}</h2><p class="small">${m.me ? 'You' : esc(m.name)}${m.me ? '' : ` · helped by ${esc(state.name || Auth.user().name)}`} · started <span id="em-timer" class="num" data-start="${alert ? alert.createdAt : new Date().toISOString()}">0:00</span> ago</p></div>
       <span class="emg-sent">${icon(alert && alert.pending ? 'cloudOff' : 'bell')}${sent}</span><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b">
       <section>
         ${md.text ? `<p class="emg-said">${icon('chat')}<span>“${esc(md.text)}”</span>${(md.others || []).length ? ` <span class="muted small">Also possible:</span> ${md.others.map((o) => `<button class="chip-s" data-act="emgtype" data-v="${o}">${esc(EMG[o].name)}</button>`).join('')}` : ''}</p>` : ''}
         <p class="emg-alg-line">${icon('care')}<b>Allergies:</b> ${!m.med ? '<span class="muted">unknown — ask before giving any medicine</span>' : al.length ? al.map((a) => `<span class="alg-chip">${esc(a)}</span>`).join(' ') : 'none known'}</p>
         <h3>Do this now</h3>
+        <p><button class="btn ghost sm" data-act="emgspeak">${icon('mic')}${md.speaking ? 'Stop reading' : 'Read the steps aloud'}</button></p>
         <ol class="steps">${e.steps.map((s, k) => `<li><button data-act="emgstep" data-k="${k}" aria-pressed="${!!md.done[k]}" class="${md.done[k] ? 'done' : ''}"><span class="n num">${md.done[k] ? icon('check') : k + 1}</span><span>${esc(s)}</span></button></li>`).join('')}</ol>
         <p class="esc"><b>Ground support:</b> ${env.name} — ${env.commNote}</p>
         <details class="emg-fold" ${wide ? 'open' : ''}><summary>${icon('box')}What to use from the ship</summary>${emgSuppliesHtml(e.id, m)}</details>
@@ -161,7 +179,7 @@ function emergencyHtml(md) {
           <dl class="crew-vitals col">${rel.map(({ id }) => vitalCell(m, id, IND[id].short)).join('')}</dl>
           ${hints.length ? `<ul class="hints">${hints.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : '<p class="muted small">No earlier warning signs in the latest readings.</p>'}
           <p class="muted small">Last readings may be hours old. Measure again now and trust what you see over stored data.</p></details>
-        <p class="emg-foot">Supports, never replaces, your mission's medical checklists and the Crew Medical Officer. Prototype — not a medical device.</p>
+        <p class="emg-foot">Protocol EMG-${e.id}: ${esc(Protocols.text('EMG-' + e.id))}. Supports, never replaces, your mission's medical checklists and the Crew Medical Officer. Prototype — not a medical device.</p>
       </aside>
     </div>
     <footer class="emg-bar"><button class="btn ghost lg" data-act="emgswitch">Switch</button><button class="btn primary lg save-big" data-act="emgresolve">${icon('check')}Mark resolved</button></footer>
@@ -245,7 +263,7 @@ function viewMission() {
   for (let d = md; d >= Math.max(1, md - 6); d--) {
     const items = [];
     crew.forEach((m) => { const row = m.days.find((p) => p.md === d); if (row) row.newAdv.filter((a) => a.level >= 2).forEach((a) => items.push({ level: a.level, text: `${m.me ? 'You' : esc(m.name)}: ${esc(a.title)}` })); });
-    alerts.filter((a) => a.md === d).forEach((a) => items.push({ level: 3, text: `${HELP_TYPES[a.type] ? `${esc(a.fromName)} asked the crew for help` : `Emergency raised for ${esc(a.aboutName)} — ${esc(alertName(a.type))}`}${a.status === 'resolved' ? ' (resolved)' : ''}` }));
+    alerts.filter((a) => a.md === d && !isRecord(a)).forEach((a) => items.push({ level: 3, text: `${HELP_TYPES[a.type] ? `${esc(a.fromName)} asked the crew for help` : `Emergency raised for ${esc(a.aboutName)} — ${esc(alertName(a.type))}`}${a.status === 'resolved' ? ' (resolved)' : ''}` }));
     const n = crew.filter((m) => { const row = m.days.find((p) => p.md === d); return row && row.checkedIn; }).length;
     if (items.length || d === md) log.push({ d, items, n });
   }

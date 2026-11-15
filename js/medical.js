@@ -275,7 +275,7 @@ const Assistant = (() => {
         ${srcs.length ? `<p class="src">${icon('shield')}<span>Sources: ${srcs.map((x) => (x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label))).join(' · ')}</span></p>` : ''}</div>`;
     });
     const say = named.map((c) => { const r = Rules.check(c, person); return r.status === 'block' ? `Do not ${person.me ? 'take' : 'give'} ${SUPPLY[c].name}. ${r.rules.find((x) => x.level === 'block').text}.` : `${SUPPLY[c].name}: ${r.status === 'ok' ? 'no contraindication found' : 'possible with caution'}.`; }).join(' ');
-    return { html: blocks.join('') + `<p class="engine">${icon('check')}Decided by the rules engine v${RULES_VERSION} for ${esc(who)} — no language model involved.</p>`, say, ruled: true };
+    return { html: blocks.join('') + `<p class="engine">${icon('check')}Decided by the rules engine v${RULES_VERSION} for ${esc(who)} — no language model involved. Rules ${esc(Protocols.text('RULES'))}.</p>`, say, ruled: true };
   }
 
   /** Answer from the onboard knowledge base: the best protocol, its steps, when to escalate, and its sources. */
@@ -286,7 +286,7 @@ const Assistant = (() => {
       <p>${esc(e.a)}</p><ol>${e.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
       <p class="l2"><b>Escalate:</b> ${esc(e.esc)}</p>
       ${also.length ? `<p class="muted small">Related: ${also.map((x) => esc(x.title)).join(' · ')}</p>` : ''}
-      <p class="src">${icon('shield')}<span>Source: onboard protocol <code>KB-${e.id}</code> (knowledge base v${KB_VERSION})${srcs.length ? ' · ' + srcs.map((x) => `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(' · ') : ''}</span></p>`;
+      <p class="src">${icon('shield')}<span>Source: onboard protocol <code>KB-${e.id}</code> (knowledge base v${KB_VERSION}), ${esc(Protocols.text('KB-' + e.id))}${srcs.length ? ' · ' + srcs.map((x) => `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(' · ') : ''}</span></p>`;
     return { html, say: `${e.title}. ${e.a} ${e.steps[0]} ${e.esc}`, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : null, kb: hits.map((h) => h.e) };
   }
 

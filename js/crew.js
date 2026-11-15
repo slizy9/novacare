@@ -114,6 +114,7 @@ const Crew = (() => {
         dose: Engine.cumulativeDose(), checkedInToday: Engine.checkedIn(s.days[md]),
         med: typeof Medical !== 'undefined' ? Medical.of(s, meta.sim ? meta.id : null) : null, // allergies etc., for the emergency flow
         predict: typeof Predict !== 'undefined' ? Predict.all().filter((p) => p.level > 0).slice(0, 3).map(({ key, title, level, text, when, now, future }) => ({ key, title, level, text, when, now, future })) : [], // risks ahead
+        care: typeof Care !== 'undefined' ? Care.open().map((c) => ({ id: c.id, title: c.title, level: c.level, status: c.status, stage: Care.stage(c).label })) : [],
         compliance: last7.length ? last7.filter((x) => x.checkedIn).length / last7.length : 0,
         updatedAt: meta.updatedAt || new Date().toISOString(), cached: !!meta.cached,
       };
@@ -217,16 +218,28 @@ const Crew = (() => {
   const uuid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID()
     : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
 
+  /** Will this alert leave the device? Accounts on a mission, and guests on the showcase mission NOVA-1. */
+  const shared = () => Auth.cloud() || (!!Auth.user() && Auth.user().guest && Auth.user().crew === SHOWCASE.code && Auth.configured());
   function raise(about, type, note) {
     const u = Auth.user();
     const a = { id: uuid(), crew: u.crew, fromId: u.id, fromName: state.name || u.name, aboutId: about.id, aboutName: about.name,
-      type, note: note || '', status: 'active', md: state.md, createdAt: new Date().toISOString(), resolvedAt: null, pending: Auth.cloud() };
+      type, note: note || '', status: 'active', md: state.md, createdAt: new Date().toISOString(), resolvedAt: null, pending: shared() };
+    writeAlerts([...readAlerts(), a]);
+    if (typeof Sync !== 'undefined') Sync.run();
+    return a;
+  }
+  /** A record for the crew that is not a call for help (a discharge, a protocol approval): created
+      already resolved, so it never rings or shows in the red bar, but it reaches every device on the mission. */
+  function record(about, type, note, by) {
+    const u = Auth.user(); const at = new Date().toISOString();
+    const a = { id: uuid(), crew: u.crew, fromId: u.id, fromName: by || state.name || u.name, aboutId: about ? about.id : u.id, aboutName: about ? about.name : (state.name || u.name),
+      type, note: note || '', status: 'resolved', md: state.md, createdAt: at, resolvedAt: at, pending: Auth.cloud() };
     writeAlerts([...readAlerts(), a]);
     if (typeof Sync !== 'undefined') Sync.run();
     return a;
   }
   function resolve(id) {
-    writeAlerts(readAlerts().map((a) => a.id === id ? { ...a, status: 'resolved', resolvedAt: new Date().toISOString(), pending: Auth.cloud() } : a));
+    writeAlerts(readAlerts().map((a) => a.id === id ? { ...a, status: 'resolved', resolvedAt: new Date().toISOString(), pending: shared() } : a));
     if (typeof Sync !== 'undefined') Sync.run();
   }
   function merge(remote) { // alerts pulled from the cloud
@@ -240,7 +253,7 @@ const Crew = (() => {
   }
 
   return { refresh, members: () => list, verdict, findings, summarize, withState, raise, resolve, merge,
-    alerts: readAlerts, writeAlerts, active: () => readAlerts().filter((a) => a.status === 'active'), SIM };
+    alerts: readAlerts, writeAlerts, record, shared, active: () => readAlerts().filter((a) => a.status === 'active'), SIM };
 })();
 
 /* ---------- emergency protocols ----------
@@ -333,4 +346,7 @@ const EMERGENCIES = [
 const EMG = Object.fromEntries(EMERGENCIES.map((e) => [e.id, e]));
 /* "Ask the crew for help" requests travel as alerts too, so every crewmate gets them. */
 const HELP_TYPES = { help: { name: 'Needs help now', urgent: true }, assist: { name: 'Asked for a hand (not urgent)', urgent: false } };
+/* Records that travel with the alerts but are not emergencies. */
+const RECORD_TYPES = { care: 'Discharge', approve: 'Protocol approved', revoke: 'Approval withdrawn' };
+const isRecord = (a) => !!RECORD_TYPES[a.type];
 const alertName = (type) => (HELP_TYPES[type] || EMG[type] || {}).name || type;

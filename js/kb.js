@@ -239,3 +239,62 @@ const KBSearch = (() => {
   }
   return { search };
 })();
+
+/* ---------- protocol approval: nothing is "validated" until a medical officer approves it ----------
+   Every onboard protocol (KB-…), emergency protocol (EMG-…), the medication rules (RULES) and the finding
+   rules (ANALYSIS) start as drafts. The Crew Medical Officer approves them from the mission log terminal
+   (/approve KB-MED-09 ISS Medical Checklist), naming the document they checked it against. The approval
+   is shared with the crew through the same channel as alerts, and every answer, recommendation and
+   emergency protocol says whether what it uses is approved or still a draft. */
+const PROTOCOL_GROUPS = { RULES: 'Medication rules engine', ANALYSIS: 'Finding and follow-up rules' };
+
+const Protocols = (() => {
+  const key = () => 'novacare.approvals:' + ((Auth.user() && Auth.user().crew) || '-');
+  const stored = () => { try { return JSON.parse(localStorage.getItem(key())) || {}; } catch (e) { return {}; } };
+  const keep = (o) => { try { localStorage.setItem(key(), JSON.stringify(o)); } catch (e) { /* ignore */ } };
+  function ids() {
+    return [...KB.map((e) => 'KB-' + e.id), ...(typeof EMERGENCIES !== 'undefined' ? EMERGENCIES.map((e) => 'EMG-' + e.id) : []), ...Object.keys(PROTOCOL_GROUPS)];
+  }
+  const norm = (id) => { const u = String(id || '').trim().toUpperCase(); return ids().find((x) => x.toUpperCase() === u) || null; };
+  const nameOf = (id) => { if (PROTOCOL_GROUPS[id]) return PROTOCOL_GROUPS[id]; const k = KB.find((e) => 'KB-' + e.id === id); if (k) return k.title; const e = typeof EMG !== 'undefined' && EMG[id.replace(/^EMG-/, '')]; return e ? e.name : id; };
+  /** Current approvals: the crew's shared records, newest last, on top of what this device remembers. */
+  function all() {
+    const out = { ...stored() };
+    const recs = typeof Crew !== 'undefined' ? Crew.alerts().filter((a) => a.type === 'approve' || a.type === 'revoke').sort((a, b) => a.createdAt.localeCompare(b.createdAt)) : [];
+    recs.forEach((a) => { const [id, source] = String(a.note || '').split('|'); if (!id) return; if (a.type === 'revoke') delete out[id]; else out[id] = { by: a.fromName, at: a.createdAt, md: a.md, source: source || '' }; });
+    keep(out); return out;
+  }
+  const status = (id) => all()[id] || null;
+  /** Who may sign: the Crew Medical Officer. A guest may, for training, and it says so. */
+  function signer() {
+    const u = Auth.user(); if (!u) return null; const name = (state && state.name) || u.name;
+    if (u.role === 'Crew Medical Officer') return `${name}, Crew Medical Officer`;
+    if (u.guest) return `${name} (training — not valid for real care)`;
+    return null;
+  }
+  function approve(raw, source) {
+    const id = norm(raw); if (!id) return `Unknown protocol “${raw}”. Type /protocols to see the ids.`;
+    const by = signer(); if (!by) return 'Only the Crew Medical Officer can approve protocols.';
+    if (!source) return `Name the document you checked it against, e.g. /approve ${id} ISS Medical Checklist`;
+    const me = Crew.members()[0]; Crew.record(me, 'approve', `${id}|${source}`, by);
+    return `${id} (${nameOf(id)}) approved by ${by}, checked against ${source}.`;
+  }
+  function revoke(raw) {
+    const id = norm(raw); if (!id) return `Unknown protocol “${raw}”.`;
+    const by = signer(); if (!by) return 'Only the Crew Medical Officer can withdraw an approval.';
+    Crew.record(Crew.members()[0], 'revoke', id, by); return `${id} is a draft again.`;
+  }
+  /** Plain words for an answer or a recommendation. */
+  function text(id) {
+    const s = id && status(id);
+    if (!id) return 'no onboard protocol';
+    return s ? `approved by ${s.by} on ${new Date(s.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${s.source ? `, checked against ${s.source}` : ''}`
+      : 'draft — not yet approved by a medical officer; confirm with the Crew Medical Officer';
+  }
+  const approved = (id) => !!status(id);
+  function summary() {
+    const a = all(); const list = ids(); const ok = list.filter((id) => a[id]);
+    return { total: list.length, approved: ok.length, drafts: list.filter((id) => !a[id]) };
+  }
+  return { ids, norm, nameOf, all, status, approve, revoke, text, approved, summary, signer };
+})();

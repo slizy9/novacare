@@ -22,6 +22,18 @@ const Reminders = (() => {
     // Exercise is the one routine item worth a nudge late in the day, because missing it costs bone and muscle.
     const ex = TASKS.find((t) => t.id === 'ex');
     if (ex && !Engine.taskDone(ex, day) && hour() >= 17) out.push({ id: 'task:ex', icon: 'pulse', title: ex.label, detail: typeof ex.detail === 'function' ? ex.detail(env) : ex.detail, act: 'remlog', v: 'ex', go: 'Log', p: 3 });
+    // NovaCare's recommendations arrive here, not as cards on the page: a new one, a re-check that is due, a discharge to confirm
+    // Urgent ones arrive one by one; small ones are grouped so the bell never fills up.
+    const fresh = typeof Care !== 'undefined' ? Care.open().filter((c) => c.status === 'new') : []; const small = fresh.filter((c) => c.level < 2);
+    if (small.length > 1) out.push({ id: `cases:${small.length}`, icon: 'shield', title: `${small.length} small things to look at`, detail: small.map((c) => c.title).slice(0, 3).join(' · '), act: 'gofind', go: 'See', p: 2.5 });
+    if (typeof Care !== 'undefined') Care.open().forEach((c) => {
+      const f = Care.finding(c);
+      if (c.status === 'new' && (c.level >= 2 || small.length === 1)) out.push({ id: 'case:' + c.id, icon: c.level >= 2 ? 'siren' : 'shield', title: c.title, detail: f && f.actions[0] ? f.actions[0] : 'Open to see what to do', act: 'case', v: c.id, go: 'Open', p: c.level >= 2 ? 0 : 2.5 });
+      else if (c.status !== 'new' && Care.due(c)) out.push({ id: 'recheck:' + c.id, icon: 'refresh', title: `Follow-up: measure your ${IND[c.ind].short.toLowerCase()}`, detail: `${c.title} — ${Care.stage(c).text}`, act: 'case', v: c.id, go: 'Open', p: 1.5 });
+      else if (c.status === 'review') out.push({ id: 'review:' + c.id, icon: 'check', title: `Ready for discharge: ${c.title}`, detail: 'Back in your range on 2 days — confirm with the Crew Medical Officer', act: 'case', v: c.id, go: 'Review', p: 4 });
+    });
+    // the habit to work on today, from the improvement coach
+    if (typeof Coach !== 'undefined' && hour() >= 10) { const a = Coach.analyze().focus[0]; if (a && !a.done) out.push({ id: 'coach:' + a.id, icon: 'chart', title: `Today’s habit: ${a.label.toLowerCase()}`, detail: a.tip, act: 'coachdone', v: a.id, go: 'I did it', p: 3 }); }
     const prof = Medical.mine();
     if (Medical.empty(prof)) out.push({ id: 'profile', icon: 'care', title: 'Add your allergies', detail: 'One minute — makes medicine checks and emergencies safe', act: 'sub', v: 'medical', go: 'Open', p: 5 });
     return out.filter((r) => !(snooze[r.id] && Date.now() < snooze[r.id])).sort((a, b) => a.p - b.p);
@@ -60,7 +72,7 @@ const Reminders = (() => {
     if (typeof renderTop === 'function' && !ui.modal) renderTop();
   }
   /** Open a reminder's action (from the bell or a notification tap). */
-  function run(id) { const r = list().find((x) => x.id === id); if (r && typeof actions !== 'undefined' && actions[r.act]) actions[r.act]({ v: r.v, id: r.id }); }
+  function run(id) { const r = list().find((x) => x.id === id); if (!r || typeof actions === 'undefined') return; if (r.act === 'coachdone') { actions.sub({ v: 'today' }); return; } if (actions[r.act]) actions[r.act]({ v: r.v, id: r.id }); }
   return { list, snooze, enable, disable, on, can, tick, run, permission: () => (can() ? Notification.permission : 'unsupported') };
 })();
 

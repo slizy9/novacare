@@ -262,7 +262,7 @@ const Sync = (() => {
 
   async function run() {
     if (!Auth.user()) return;
-    if (!Auth.cloud()) { set('local'); showcasePull(); return; }
+    if (!Auth.cloud()) { set('local'); showcasePull(); showcaseAlerts(); return; }
     if (running) { again = true; return; }
     running = true;
     try {
@@ -390,7 +390,37 @@ const Sync = (() => {
   }
   /* Quick check for alerts only, every few seconds, between full syncs. */
   let alertBusy = false;
+  /* Guests on the showcase mission NOVA-1: their calls for help reach its crew and they see the crew's,
+     through two database functions (supabase/setup.sql), since a guest has no account. */
+  let guestBusy = false;
+  async function showcaseAlerts() {
+    const u = Auth.user(); const sb = Auth.client();
+    if (!u || !u.guest || !sb || u.crew !== SHOWCASE.code || guestBusy || navigator.onLine === false) return;
+    guestBusy = true;
+    try {
+      for (const a of Crew.alerts().filter((x) => x.pending && !RECORD_TYPES[x.type])) {
+        const r = await sb.rpc('showcase_raise', { p_id: a.id, p_from_name: a.fromName, p_about_id: a.aboutId, p_about_name: a.aboutName, p_type: a.type, p_note: a.note, p_md: a.md, p_status: a.status });
+        if (r.error) throw r.error;
+        Crew.writeAlerts(Crew.alerts().map((x) => x.id === a.id ? { ...x, pending: false } : x));
+        if (a.status === 'active') listeners.forEach((f) => f(status, 'alertsent', a));
+      }
+      const r = await sb.rpc('showcase_alerts'); if (r.error) throw r.error;
+      const prev = new Set(Crew.active().map((a) => a.id)); const local = Object.fromEntries(Crew.alerts().map((a) => [a.id, a]));
+      Crew.merge((r.data || []).map((x) => ({ id: x.id, crew: SHOWCASE.code, fromId: x.from_user || (local[x.id] ? local[x.id].fromId : 'guest:' + x.from_name), fromName: x.from_name,
+        aboutId: x.about_id, aboutName: x.about_name, type: x.type, note: x.note, md: x.md, status: x.status, createdAt: x.created_at, resolvedAt: x.resolved_at })));
+      const now = Crew.active(); const nowIds = new Set(now.map((a) => a.id));
+      const incoming = now.filter((a) => !prev.has(a.id) && a.fromId !== u.id);
+      const resolved = Crew.alerts().filter((a) => prev.has(a.id) && !nowIds.has(a.id) && a.status === 'resolved');
+      alertError = '';
+      if (incoming.length || now.length !== prev.size) listeners.forEach((f) => f(status, 'alerts', incoming));
+      if (resolved.length) listeners.forEach((f) => f(status, 'alertsresolved', resolved));
+    } catch (e) {
+      if (!Auth.isNetErr(e)) { alertError = e.message || String(e); console.warn('NOVACARE guest alerts (run supabase/setup.sql to share NOVA-1 alerts with guests):', alertError); }
+    } finally { guestBusy = false; }
+  }
+
   async function alertsOnly() {
+    if (Auth.user() && Auth.user().guest) { showcaseAlerts(); return; }
     if (alertBusy || running || !Auth.user() || !Auth.cloud() || !Auth.user().crew || navigator.onLine === false) return;
     alertBusy = true;
     try { const sess = await Auth.cloudSession(); if (sess) await alertSync(Auth.client(), sess.user.id, Auth.user()); } catch (e) { /* the full sync reports connection problems */ } finally { alertBusy = false; }
