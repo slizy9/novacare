@@ -75,6 +75,20 @@ const Engine = (() => {
   const env = () => ENVIRONMENTS[state.env] || ENVIRONMENTS.iss;
   const today = () => (state.days[state.md] = state.days[state.md] || { vals: {}, tasks: {} });
 
+  /* ---------- mission day follows the calendar ----------
+     Day 1 is the mission's start date; each local midnight starts the next mission day.
+     Missions saved before this get a start date that keeps their current day. Never goes back. */
+  const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const fromKey = (k) => { const [y, m, d] = String(k).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+  function calendarDay() {
+    if (!state) return false;
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    if (!state.startDate) { const s = new Date(now); s.setDate(s.getDate() - ((state.md || 1) - 1)); state.startDate = dayKey(s); }
+    const md = Math.max(1, Math.round((now - fromKey(state.startDate)) / 864e5) + 1);
+    if (md <= (state.md || 1)) return false;
+    state.md = md; today(); return true;
+  }
+
   /* ---------- series & status ---------- */
   function series(id) {
     const out = [];
@@ -334,5 +348,5 @@ const Engine = (() => {
   }
 
   return { load, save, demo, fresh, env, today, series, ctx, classify, status, systemLevel, readiness, dueList,
-    cumulativeDose, advisories, taskDone, checkedIn, dayXp, game, fmt, label, report, avg };
+    cumulativeDose, advisories, taskDone, checkedIn, calendarDay, dayKey, dayXp, game, fmt, label, report, avg };
 })();

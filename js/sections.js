@@ -148,8 +148,8 @@ function bannerHtml() {
   if (!act.length) return '';
   const u = Auth.user();
   return act.slice(-3).reverse().map((a) => `<div class="banner" role="alert">${icon('siren')}
-    ${HELP_TYPES[a.type] ? `<p><b>${a.fromId === u.id ? 'You asked the crew for help' : `${esc(a.fromName)} is asking for help`}</b> — ${esc(alertName(a.type).toLowerCase())}${a.note ? ` · “${esc(a.note)}”` : ''} · ${timeAgo(a.createdAt)}${a.pending ? ' · waiting for link' : ''}</p>`
-      : `<p><b>Emergency: ${a.aboutId === u.id || (u.uid && a.aboutId === u.uid) ? 'you' : esc(a.aboutName)}</b> — ${esc(alertName(a.type))} · raised by ${esc(a.fromName)} · ${timeAgo(a.createdAt)}${a.pending ? ' · waiting for link' : ''}</p>`}
+    ${HELP_TYPES[a.type] ? `<p><b>${a.fromId === u.id ? 'You asked the crew for help' : `${esc(a.fromName)} is asking for help`}</b> — ${esc(alertName(a.type).toLowerCase())}${a.note ? ` · “${esc(a.note)}”` : ''} · ${timeAgo(a.createdAt)}${a.pending ? (navigator.onLine === false ? ' · waiting for link' : ' · sending…') : ''}</p>`
+      : `<p><b>Emergency: ${a.aboutId === u.id || (u.uid && a.aboutId === u.uid) ? 'you' : esc(a.aboutName)}</b> — ${esc(alertName(a.type))} · raised by ${esc(a.fromName)} · ${timeAgo(a.createdAt)}${a.pending ? (navigator.onLine === false ? ' · waiting for link' : ' · sending…') : ''}</p>`}
     ${HELP_TYPES[a.type] && a.fromId === u.id ? '' : `<button class="btn sm light" data-act="emgopen" data-id="${a.id}">${HELP_TYPES[a.type] ? 'Help them' : 'Open protocol'}</button>`}<button class="btn sm ghost-light" data-act="emgdone" data-id="${a.id}">${HELP_TYPES[a.type] && a.fromId === u.id ? 'Cancel request' : 'Resolve'}</button></div>`).join('');
 }
 
@@ -226,7 +226,7 @@ function viewMission() {
   }
 
   return pageHead('Mission status', `${esc(Missions.label())} · ${env.name} · updates every mission day`,
-    `<button class="btn ghost" data-act="mreport">${icon('download')}Mission report</button><button class="btn primary" data-act="nextday">${icon('next')}Advance to MD ${md + 1}</button>`) + missionTabs() +
+    `<button class="btn ghost" data-act="mreport">${icon('download')}Mission report</button><button class="btn quiet" data-act="leavemission" data-code="${esc(Auth.user().crew || '')}">${icon('logout')}Leave mission</button>`) + missionTabs() +
   `<section class="card mission-hero">
      <div class="mh-top"><div><span class="muted small">Mission day</span><p class="mh-day" data-count-wrap><b class="num">${md}</b><span class="num">of ${len}</span></p></div>
        <div class="mh-meta"><span>${phase}</span><span class="num">${Math.max(0, len - md)} days to go</span><span>${crew.length} crew</span></div></div>

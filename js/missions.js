@@ -5,10 +5,12 @@
    Other missions this person belongs to are parked in state.archive[code], so everything still
    saves and syncs as one record. The active mission code is the account's crew code. */
 const Missions = (() => {
-  const FIELDS = ['env', 'md', 'days', 'missionDays', 'demo', 'missionName'];
+  const FIELDS = ['env', 'md', 'days', 'missionDays', 'demo', 'missionName', 'startDate'];
   const code = () => Auth.user().crew;
   const norm = (c) => String(c || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
-  const blank = (env, len, name) => ({ env: env || 'iss', md: 1, days: { 1: { vals: {}, tasks: {} } }, missionDays: len || 180, demo: false, missionName: name || '' });
+  // start = the mission's first day (a joined mission starts when its creator created it, so the crew shares the same day)
+  const blank = (env, len, name, start) => ({ env: env || 'iss', md: 1, days: { 1: { vals: {}, tasks: {} } }, missionDays: len || 180, demo: false, missionName: name || '',
+    startDate: Engine.dayKey(start && !isNaN(new Date(start)) ? new Date(start) : new Date()) });
 
   function ensure() {
     if (!Array.isArray(state.missions)) state.missions = [];
@@ -59,7 +61,7 @@ const Missions = (() => {
     const d = info || directory().find((x) => x.code === c) || {};
     const existed = state.missions.some((m) => m.code === c);
     if (!existed) state.missions.push({ code: c, name: d.name || '', role: 'member', at: new Date().toISOString() });
-    activate(c, blank(d.env, d.mission_days, d.name));
+    activate(c, blank(d.env, d.mission_days, d.name, d.created_at));
     return { code: c, existed };
   }
 
@@ -80,9 +82,19 @@ const Missions = (() => {
     finally { dirBusy = false; }
   }
   function rename(name) { ensure(); const m = state.missions.find((x) => x.code === code()); name = String(name || '').trim().slice(0, 40); if (m) m.name = name; state.missionName = name; Engine.save(); }
+  /** Leave a mission. Leaving the open one switches to another mission, or back to no mission.
+      The next sync removes the membership and the crew status, so crewmates stop seeing this person. */
   function leave(c) {
-    ensure(); if (c === code()) return false;
-    state.missions = state.missions.filter((m) => m.code !== c); delete state.archive[c]; Engine.save(); return true;
+    ensure();
+    const active = c === code();
+    state.missions = state.missions.filter((m) => m.code !== c); delete state.archive[c];
+    if (active) {
+      const next = state.missions[0];
+      if (next) { const data = state.archive[next.code] || blank(); FIELDS.forEach((f) => { delete state[f]; }); Object.assign(state, data); delete state.archive[next.code]; Auth.updateProfile({ crew: next.code }); }
+      else { FIELDS.forEach((f) => { delete state[f]; }); Object.assign(state, blank()); Auth.updateProfile({ crew: '' }); }
+      Engine.today(); Crew.refresh(true);
+    }
+    Engine.save(); Sync.run(); return true;
   }
   return { list, current, has, locked, label, activate, create, join, rename, leave, norm, directory, refreshDirectory };
 })();

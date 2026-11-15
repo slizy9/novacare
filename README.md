@@ -12,7 +12,7 @@ python3 -m http.server 8765
 
 Then open http://localhost:8765. It works fully offline and stores data in the browser (localStorage) — by design, since a Mars crew cannot depend on a link to Earth.
 
-Sign in, create an account, or tap **Continue as guest** (guest data stays on the device and never syncs). New accounts start with no mission; a demo mission can be loaded from **Settings → Load demo mission**, and the **▸** button next to the mission day advances time during a demo.
+Sign in, create an account, or tap **Continue as guest** (guest data stays on the device and never syncs). New accounts start with no mission; a demo mission can be loaded from **Settings → Load demo mission**. The mission day follows the calendar: day 1 is the mission's start date and a new day starts at local midnight (crewmates who join share the creator's start date).
 
 Live at https://novacare.earth (GitHub Pages).
 

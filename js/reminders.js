@@ -15,8 +15,11 @@ const Reminders = (() => {
   function list() {
     if (!Auth.user() || !state) return [];
     const day = Engine.today(); const env = Engine.env(); const out = []; const snooze = read().snooze || {};
-    if (Status.due()) out.push({ id: 'status', icon: 'checks', title: 'Status update', detail: '30 seconds: how you feel right now', act: 'status', go: 'Start', p: 1 });
+    if (Status.due()) out.push({ id: 'status', icon: 'checks', title: 'How do you feel?', detail: 'One tap', act: 'status', go: 'Answer', p: 1 });
+    // vitals + mind are one quick check-in; it is a choice, so "Not today" removes it
+    if (!day.checkinAt && !Engine.checkedIn(day) && !day.skipCheckin) out.push({ id: 'checkin', icon: 'plus', title: 'Daily check-in', detail: 'About a minute, all on one screen', act: 'checkin', go: 'Start', p: 2 });
     TASKS.forEach((t) => {
+      if (t.id === 'vitals' || t.id === 'mind') return;
       if (Engine.taskDone(t, day) || hour() < (REMIND_AT[t.id] ?? 0)) return;
       const detail = typeof t.detail === 'function' ? t.detail(env) : t.detail;
       out.push(t.ids ? { id: 'task:' + t.id, icon: 'pulse', title: t.label, detail, act: 'remlog', v: t.id, go: 'Log now', p: t.id === 'vitals' || t.id === 'mind' ? 2 : 3 }
@@ -46,11 +49,12 @@ const Reminders = (() => {
     try { const n = new Notification(title, { body, tag: r.id }); n.onclick = () => { window.focus(); n.close(); run(r.id); }; } catch (e) { /* not supported here */ }
   }
   /** Check every minute: remind once per item per mission day. */
-  function tick() {
+  function tick(silent) {
     if (!Auth.user() || !state) return;
     const o = read(); o.sent = o.sent || {}; const fresh = [];
     list().forEach((r) => { const k = `${r.id}@${state.md}`; if (!o.sent[k]) { o.sent[k] = Date.now(); fresh.push(r); } });
     if (!fresh.length) return;
+    if (silent) { write(o); return; } // on opening the app nothing pops up: pending items wait under the bell
     // keep the record small
     const ks = Object.keys(o.sent); if (ks.length > 300) ks.slice(0, ks.length - 300).forEach((k) => delete o.sent[k]);
     write(o);

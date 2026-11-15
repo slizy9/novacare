@@ -213,7 +213,11 @@ const Crew = (() => {
   }
   function merge(remote) { // alerts pulled from the cloud
     const mine = readAlerts(); const byId = Object.fromEntries(mine.map((a) => [a.id, a]));
-    remote.forEach((r) => { const l = byId[r.id]; if (!l || (!l.pending && (r.status !== l.status))) byId[r.id] = { ...r, pending: false }; });
+    remote.forEach((r) => {
+      const l = byId[r.id];
+      // resolved wins: once anyone resolves an alert it is resolved on every device
+      if (!l || (r.status === 'resolved' && l.status === 'active') || (!l.pending && r.status !== l.status)) byId[r.id] = { ...r, pending: false };
+    });
     writeAlerts(Object.values(byId).sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
   }
 

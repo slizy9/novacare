@@ -267,8 +267,11 @@ const Sync = (() => {
      Kept separate so a project without the crew tables still syncs mission data. */
   async function crewSync(sb, uid) {
     const u = Auth.user(); const acc = Auth.account() || {};
+    // membership first (the database only accepts alerts from members), then alerts on their own,
+    // so a failure in profiles, crew status or the directory can never hold an emergency back
+    try { await membershipSync(sb, uid, u); } catch (e) { if (Auth.isNetErr(e)) throw e; console.warn('NOVACARE membership sync:', e.message || e); }
+    await alertSync(sb, uid, u);
     try {
-      await membershipSync(sb, uid, u);
       if (acc.profileDirty) {
         const r = await sb.from('profiles').update({ crew_code: u.crew || null, name: u.name }).eq('id', uid);
         if (r.error) throw r.error;
@@ -279,30 +282,62 @@ const Sync = (() => {
       const me = Crew.summarize(state, { id: u.id, name: state.name || u.name, role: u.role });
       let r = await sb.from('crew_status').upsert({ user_id: uid, crew_code: u.crew, name: me.name, role: u.role, summary: me, updated_at: new Date().toISOString() }, { onConflict: 'user_id,crew_code' });
       if (r.error) throw r.error;
-      const pending = Crew.alerts().filter((a) => a.pending);
-      for (const a of pending) {
-        const mine = a.fromId === u.id || a.fromId === uid;
-        r = !mine ? await sb.from('alerts').update({ status: a.status, resolved_at: a.resolvedAt }).eq('id', a.id) : await sb.from('alerts').upsert({ id: a.id, crew_code: a.crew, from_user: uid, from_name: a.fromName, about_id: a.aboutId, about_name: a.aboutName,
-          type: a.type, note: a.note, md: a.md, status: a.status, created_at: a.createdAt, resolved_at: a.resolvedAt });
-        if (r.error) throw r.error;
-      }
-      if (pending.length) Crew.writeAlerts(Crew.alerts().map((a) => pending.some((p) => p.id === a.id) ? { ...a, pending: false } : a));
       r = await sb.from('crew_status').select('user_id, name, role, summary, updated_at').eq('crew_code', u.crew).neq('user_id', uid);
       if (r.error) throw r.error;
       const before = localStorage.getItem('novacare.crew:' + u.id);
       localStorage.setItem('novacare.crew:' + u.id, JSON.stringify(r.data || []));
-      const since = new Date(Date.now() - 7 * 864e5).toISOString();
-      r = await sb.from('alerts').select('*').eq('crew_code', u.crew).gte('created_at', since);
-      if (r.error) throw r.error;
-      const prevActive = Crew.active().map((a) => a.id).join();
-      Crew.merge((r.data || []).map((x) => ({ id: x.id, crew: x.crew_code, fromId: x.from_user, fromName: x.from_name, aboutId: x.about_id, aboutName: x.about_name,
-        type: x.type, note: x.note, md: x.md, status: x.status, createdAt: x.created_at, resolvedAt: x.resolved_at })));
-      if (before !== localStorage.getItem('novacare.crew:' + u.id) || prevActive !== Crew.active().map((a) => a.id).join()) listeners.forEach((f) => f(status, 'crew'));
+      if (before !== localStorage.getItem('novacare.crew:' + u.id)) listeners.forEach((f) => f(status, 'crew'));
     } catch (e) {
       if (Auth.isNetErr(e)) throw e;
       console.warn('NOVACARE crew sync (run supabase/setup.sql to enable crew sharing):', e.message || e);
     }
     if (u.crew) await inventorySync(sb, u);
+  }
+
+  /* Emergency alerts and help requests: mine up, the crew's down. Errors are kept (alertError)
+     so the person who raised it sees that it has not reached the crew yet. */
+  let alertError = '';
+  async function alertSync(sb, uid, u) {
+    if (!u.crew) return;
+    try {
+      const pending = Crew.alerts().filter((a) => a.pending);
+      for (const a of pending) {
+        const mine = a.fromId === u.id || a.fromId === uid;
+        const row = { status: a.status, resolved_at: a.resolvedAt };
+        // a new alert is inserted; an existing one (mine or a crewmate's) only changes its status
+        let r = mine ? await sb.from('alerts').insert({ id: a.id, crew_code: a.crew || u.crew, from_user: uid, from_name: a.fromName, about_id: a.aboutId, about_name: a.aboutName,
+          type: a.type, note: a.note, md: a.md, status: a.status, created_at: a.createdAt, resolved_at: a.resolvedAt }) : null;
+        if (!mine || (r.error && r.error.code === '23505')) r = await sb.from('alerts').update(row).eq('id', a.id); // 23505 = already uploaded
+        if (r.error) throw r.error;
+        Crew.writeAlerts(Crew.alerts().map((x) => x.id === a.id ? { ...x, pending: false } : x));
+        if (mine && a.status === 'active') listeners.forEach((f) => f(status, 'alertsent', a));
+      }
+      const since = new Date(Date.now() - 7 * 864e5).toISOString();
+      const r = await sb.from('alerts').select('*').eq('crew_code', u.crew).gte('created_at', since);
+      if (r.error) throw r.error;
+      const prev = new Set(Crew.active().map((a) => a.id));
+      Crew.merge((r.data || []).map((x) => ({ id: x.id, crew: x.crew_code, fromId: x.from_user, fromName: x.from_name, aboutId: x.about_id, aboutName: x.about_name,
+        type: x.type, note: x.note, md: x.md, status: x.status, createdAt: x.created_at, resolvedAt: x.resolved_at })));
+      const now = Crew.active();
+      const incoming = now.filter((a) => !prev.has(a.id) && a.fromId !== uid && a.fromId !== u.id);
+      const nowIds = new Set(now.map((a) => a.id));
+      const resolved = Crew.alerts().filter((a) => prev.has(a.id) && !nowIds.has(a.id) && a.status === 'resolved');
+      alertError = '';
+      if (incoming.length || now.length !== prev.size || now.some((a) => !prev.has(a.id))) listeners.forEach((f) => f(status, 'alerts', incoming));
+      if (resolved.length) listeners.forEach((f) => f(status, 'alertsresolved', resolved));
+    } catch (e) {
+      if (Auth.isNetErr(e)) throw e;
+      alertError = e.message || String(e);
+      console.warn('NOVACARE alert sync:', alertError);
+      listeners.forEach((f) => f(status, 'alerterror', alertError));
+    }
+  }
+  /* Quick check for alerts only, every few seconds, between full syncs. */
+  let alertBusy = false;
+  async function alertsOnly() {
+    if (alertBusy || running || !Auth.user() || !Auth.cloud() || !Auth.user().crew || navigator.onLine === false) return;
+    alertBusy = true;
+    try { const sess = await Auth.cloudSession(); if (sess) await alertSync(Auth.client(), sess.user.id, Auth.user()); } catch (e) { /* the full sync reports connection problems */ } finally { alertBusy = false; }
   }
 
   /* Missions this person is on: membership rows (so they only appear in those missions),
@@ -355,8 +390,10 @@ const Sync = (() => {
   if (typeof window !== 'undefined') {
     window.addEventListener('online', () => run());
     window.addEventListener('offline', () => { if (Auth.user() && Auth.cloud()) set('offline'); });
-    setInterval(() => { if (Auth.user() && status !== 'syncing') run(); }, 30000); // crew alerts and help requests arrive within ~30 s
+    setInterval(() => { if (Auth.user() && !running) run(); }, 30000);
+    setInterval(alertsOnly, 8000); // emergencies and help requests arrive within ~8 s
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') alertsOnly(); });
   }
 
-  return { touch, run, status: () => status, pending: () => !!(Auth.user() && meta().dirty), onChange: (f) => listeners.push(f) };
+  return { touch, run, alertsNow: alertsOnly, alertError: () => alertError, status: () => status, pending: () => !!(Auth.user() && meta().dirty), onChange: (f) => listeners.push(f) };
 })();

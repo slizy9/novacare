@@ -5,26 +5,26 @@
 
 const STATUS_EVERY = [4, 6, 8, 12, 24]; // hours between updates (Settings)
 
-/* Questions. `show(a)` decides whether a follow-up applies, from the answers so far. */
+/* Questions. `show(a)` decides whether a follow-up applies, from the answers so far.
+   Feeling great or good is one tap; anything else asks one "what's going on" screen,
+   and only red-flag answers ask a follow-up. */
 const STATUS_QS = [
   { id: 'feel', q: 'How do you feel right now?', type: 'one',
     opts: [[5, 'Great'], [4, 'Good'], [3, 'Okay'], [2, 'Not well'], [1, 'Bad']] },
-  { id: 'feelWhy', q: 'What feels off?', type: 'many', show: (a) => a.feel <= 2,
-    opts: [['tired', 'Very tired'], ['sick', 'Sick or feverish'], ['low', 'Low or anxious'], ['pain', 'In pain'], ['other', 'Something else']] },
-  { id: 'pain', q: 'Any pain?', type: 'one', opts: [['no', 'No'], ['yes', 'Yes']] },
-  { id: 'painWhere', q: 'Where does it hurt?', type: 'many', show: (a) => a.pain === 'yes',
+  { id: 'sym', q: 'What’s going on?', type: 'many', show: (a) => a.feel <= 3,
+    opts: [['none', 'Nothing specific'], ['tired', 'Very tired'], ['pain', 'Pain'], ['fever', 'Fever or chills'], ['low', 'Low or anxious'],
+      ['nausea', 'Nausea'], ['dizzy', 'Dizziness'], ['breath', 'Short of breath'], ['vision', 'Vision change'], ['cough', 'Cough']] },
+  { id: 'painWhere', q: 'Where does it hurt?', type: 'many', show: (a) => has(a.sym, 'pain'),
     opts: [['head', 'Head'], ['chest', 'Chest'], ['back', 'Back'], ['belly', 'Stomach'], ['limbs', 'Arms or legs'], ['eyes', 'Eyes']] },
-  { id: 'painHow', q: 'How bad is it?', type: 'one', show: (a) => a.pain === 'yes',
+  { id: 'painHow', q: 'How bad is it?', type: 'one', show: (a) => has(a.sym, 'pain'),
     opts: [[1, 'Mild'], [2, 'Moderate'], [3, 'Severe']] },
-  { id: 'sym', q: 'Anything else since your last update?', type: 'many',
-    opts: [['none', 'Nothing'], ['nausea', 'Nausea'], ['dizzy', 'Dizziness'], ['breath', 'Short of breath'], ['fever', 'Fever or chills'], ['vision', 'Vision change'], ['cough', 'Cough']] },
   { id: 'breathRest', q: 'Are you short of breath right now, at rest?', type: 'one', show: (a) => has(a.sym, 'breath'),
     opts: [['no', 'No, only on effort'], ['yes', 'Yes, at rest']] },
   { id: 'visionHow', q: 'How has your vision changed?', type: 'one', show: (a) => has(a.sym, 'vision'),
     opts: [['near', 'Blurry up close'], ['far', 'Blurry far away'], ['sudden', 'Sudden loss or flashes']] },
   { id: 'dizzyFaint', q: 'Did you faint or nearly faint?', type: 'one', show: (a) => has(a.sym, 'dizzy'),
     opts: [['no', 'No'], ['yes', 'Yes']] },
-  { id: 'talk', q: 'Would you like to talk to someone?', type: 'one', show: (a) => a.feel <= 3 || has(a.feelWhy, 'low'),
+  { id: 'talk', q: 'Would you like to talk to someone?', type: 'one', show: (a) => a.feel <= 1 || has(a.sym, 'low'),
     opts: [['no', 'Not now'], ['yes', 'Yes, please']] },
 ];
 const has = (v, x) => Array.isArray(v) && v.includes(x);
@@ -33,15 +33,27 @@ const Status = (() => {
   const list = () => (Array.isArray(state.updates) ? state.updates : []);
   const every = () => (STATUS_EVERY.includes(state.updateEvery) ? state.updateEvery : 8);
   const last = () => list()[list().length - 1] || null;
-  /** Hours until the next update (negative = overdue). */
-  function dueIn() { const l = last(); if (!l) return -1; return every() - (Date.now() - new Date(l.at).getTime()) / 36e5; }
-  const due = () => dueIn() <= 0;
+  const opened = Date.now(); // never ask right after the app opens
+  /** Since when to count: the later of the last update and today's check-in. Null = nothing yet. */
+  function since() {
+    const day = state.days && state.days[state.md];
+    const ci = day && day.checkinAt ? new Date(day.checkinAt).getTime() : day && Engine.checkedIn(day) ? opened : 0;
+    const l = last(); const lu = l && l.md === state.md ? new Date(l.at).getTime() : 0;
+    return Math.max(ci, lu) || null;
+  }
+  /** Hours until the next update. Infinity = not asked today (no check-in yet). */
+  function dueIn() { const s = since(); if (!s) return Infinity; return every() - (Date.now() - s) / 36e5; }
+  /** Only after today's check-in, every few hours, and never in the first minutes after opening. */
+  const due = () => dueIn() <= 0 && Date.now() - opened > 10 * 60000;
   /** The questions that apply, given the answers so far. */
   const steps = (a) => STATUS_QS.filter((q) => !q.show || q.show(a));
 
   /** Turn answers into a level (0–3), plain-language findings and what to do. */
-  function evaluate(a) {
+  function evaluate(a0) {
     const f = []; // { level, text, act, ind }
+    // older updates kept "feelWhy" and a separate "pain" question: fold them into one list
+    const sym = [...(a0.sym || []), ...(a0.feelWhy || [])].map((x) => (x === 'sick' ? 'fever' : x));
+    const a = { ...a0, sym, feelWhy: sym, pain: a0.pain === 'yes' || sym.includes('pain') ? 'yes' : 'no' };
     const where = a.painWhere || [];
     if (a.pain === 'yes' && has(where, 'chest')) f.push({ level: 3, text: 'Chest pain', act: 'Stop what you are doing, rest, and get the Crew Medical Officer now.', ind: 'hr', emg: 'chest' });
     if (a.breathRest === 'yes') f.push({ level: 3, text: 'Short of breath at rest', act: 'Measure SpO₂ now and get the Crew Medical Officer. Check the cabin air.', ind: 'spo2', emg: 'breathing' });
@@ -96,12 +108,12 @@ function statusHtml(m) {
   }
   const qs = Status.steps(m.ans); const q = qs[m.i]; const n = qs.length; const v = m.ans[q.id];
   const on = (x) => (q.type === 'many' ? has(v, x) : v === x);
+  const feel = q.id === 'feel';
   return `<div class="sheet narrow status" role="dialog" aria-modal="true" aria-label="${esc(q.q)}">
-    <header><div><p class="kicker">Status update · ${m.i + 1} of ${n}</p><h2>${esc(q.q)}</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
-    <div class="meter"><i style="width:${((m.i + 1) / n) * 100}%"></i></div>
+    <header><div><p class="kicker">Quick status</p><h2>${esc(q.q)}</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
-      <div class="st-opts ${q.type}">${q.opts.map(([val, label]) => `<button class="${on(val) ? 'on' : ''}" data-act="stans" data-v="${val}" aria-pressed="${on(val)}">${q.id === 'feel' ? `<span class="st-face">${['', '😣', '🙁', '😐', '🙂', '😄'][val]}</span>` : ''}${esc(label)}</button>`).join('')}</div>
-      ${q.type === 'many' ? '<p class="muted small">Choose all that apply.</p>' : ''}
+      <div class="st-opts ${q.type} ${feel ? 'faces' : ''}">${q.opts.map(([val, label]) => `<button class="${on(val) ? 'on' : ''}" data-act="stans" data-v="${val}" aria-pressed="${on(val)}">${feel ? `<span class="st-face">${['', '😣', '🙁', '😐', '🙂', '😄'][val]}</span>` : ''}${esc(label)}</button>`).join('')}</div>
+      ${feel ? '<p class="muted small center">One tap. If you feel fine, that’s it.</p>' : q.type === 'many' ? '<p class="muted small">Tap all that apply.</p>' : ''}
     </div>
     <footer>${m.i > 0 ? '<button class="btn ghost lg" data-act="stback">Back</button>' : '<button class="btn ghost lg" data-act="close">Later</button>'}
       ${q.type === 'many' ? `<button class="btn primary lg save-big" data-act="stnext" ${v && v.length ? '' : 'disabled'}>${m.i < n - 1 ? 'Next' : 'Finish'}${icon('next')}</button>` : ''}</footer>
@@ -122,6 +134,7 @@ function helpHtml(m) {
         <div class="chips ask-sug">${HELP_WHY.map((w) => `<button type="button" class="${m.why.includes(w) ? 'on' : ''}" data-act="helpwhy" data-v="${w}">${w}</button>`).join('')}</div></div>
       <div class="ask-row"><input id="help-note" name="note" class="text" type="text" maxlength="160" placeholder="Add a short note (where you are, what happened)">${micBtn('help-note')}</div>
       <button class="btn ${m.urgent ? 'sos' : 'primary'} lg save-big" type="submit">${icon('bell')}${m.urgent ? 'Alert the crew now' : 'Send to the crew'}</button>
-      <p class="muted small">${Auth.cloud() ? 'Sent to everyone on your mission. With no signal it is saved and sent when the link is back.' : 'Shown to crewmates who use this device.'}</p>
+      ${alertReach() === 'cloud' ? '<p class="muted small">Sent to everyone on your mission. With no signal it is saved and sent when the link is back.</p>'
+        : `<p class="small l2"><b>${alertSentMsg('request').replace(/^[^:]+: (.)/, (x, c) => c.toUpperCase())}</b></p>`}
     </form></div>`;
 }
