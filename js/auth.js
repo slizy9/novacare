@@ -9,7 +9,10 @@
    - Readings are always saved on the device first and marked "pending". As soon as
      the link comes back they are uploaded automatically.
    - The first sign-in on a brand-new device, and creating an account, need a connection.
-   - With no Supabase project configured (js/config.js), everything runs locally. */
+   - With SHIP_SERVER_URL set (js/config.js), the database is the ship server on the ship's own
+     network (ship/server.js) instead of the cloud: sign-up, sign-in, crew alerts and the shared
+     inventory all work with no internet, and a forgotten password is reset with the crew reset code.
+   - With neither configured, everything runs locally. */
 
 const Auth = (() => {
   const USERS_KEY = 'novacare.accounts';   // device copy of accounts that signed in here
@@ -19,9 +22,18 @@ const Auth = (() => {
   const TIMEOUT = 10000;                   // a request slower than this counts as "no signal"
   const cfg = typeof NOVACARE_CONFIG !== 'undefined' ? NOVACARE_CONFIG : {};
   const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && !/YOUR-/.test(cfg.SUPABASE_URL + cfg.SUPABASE_ANON_KEY));
+  // The ship server speaks the same API as Supabase, so the same client works against it.
+  const shipUrl = (() => {
+    const u = String(cfg.SHIP_SERVER_URL || '').trim(); if (!u) return '';
+    try { return new URL(u, location.href).href.replace(/\/?$/, '/'); } catch (e) { return ''; }
+  })();
+  const SHIP_KEY = 'novacare-ship';
+  const base = shipUrl || String(cfg.SUPABASE_URL || '').replace(/\/?$/, '/');
+  const apiKey = shipUrl ? SHIP_KEY : cfg.SUPABASE_ANON_KEY;
   let sb = null;
   try {
-    if (configured && window.supabase) sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+    if (window.supabase && shipUrl) sb = window.supabase.createClient(shipUrl, SHIP_KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'novacare.ship.auth' } });
+    else if (window.supabase && configured) sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
   } catch (e) { sb = null; }
   let current = null;
 
@@ -103,11 +115,16 @@ const Auth = (() => {
 
   /* ---------- password recovery ----------
      1) the person asks for a link; 2) the link opens NovaCare with a recovery session;
-     3) they choose a new password here. Needs a connection and the site URL allowed in Supabase. */
+     3) they choose a new password here. Needs a connection and the site URL allowed in Supabase.
+     On the ship there is no email: the ship server's reset page asks for the crew reset code instead. */
   async function requestReset(email) {
     email = norm(email);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter the email of your account.');
     if (!sb) throw new Error('Password recovery needs the NOVACARE database. In local mode, create a new account.');
+    if (shipUrl) { // the email and the way back stay in the fragment, which is never sent to the server
+      location.assign(shipUrl + 'reset#' + new URLSearchParams({ email, back: location.origin + location.pathname }));
+      return new Promise(() => {}); // the page is leaving
+    }
     let res;
     try { res = await withTimeout(sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
     catch (e) { throw new Error(isNetErr(e) ? 'No connection — try again when the link is back.' : (e.message || 'Could not send the email.')); }
@@ -195,7 +212,7 @@ const Auth = (() => {
   /** Throws Offline unless the database answers. */
   async function ping() {
     try {
-      const r = await withTimeout(fetch(cfg.SUPABASE_URL.replace(/\/$/, '') + '/auth/v1/health', { headers: { apikey: cfg.SUPABASE_ANON_KEY }, cache: 'no-store' }), 6000);
+      const r = await withTimeout(fetch(base + 'auth/v1/health', { headers: { apikey: apiKey }, cache: 'no-store' }), 6000);
       if (!r || r.status >= 500) throw new Offline('down');
     } catch (e) { throw new Offline('offline'); }
   }
@@ -235,7 +252,7 @@ const Auth = (() => {
     user: () => current, updateProfile, account, clearDirty, restore, register, login, logout, reconnect, cloudSession, isNetErr, guest,
     requestReset, setNewPassword, recovering: () => recovering, onRecovery: (f) => recoveryListeners.push(f),
     // cloud(): this session syncs with the database. Guests never do (their data stays on the device).
-    client: () => sb, cloud: () => !!sb && !(current && current.guest), configured: () => !!sb,
+    client: () => sb, cloud: () => !!sb && !(current && current.guest), configured: () => !!sb, ship: () => !!(sb && shipUrl),
     hasUsers: () => Object.keys(accounts()).some((k) => k !== GUEST_ID),
   };
 })();
