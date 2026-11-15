@@ -285,7 +285,11 @@ function viewAnalysis() {
   const ranked = crew.map((m, i) => ({ m, i, v: Crew.verdict(m) })).sort((a, b) => b.v.level - a.v.level || (a.m.readiness ?? 0) - (b.m.readiness ?? 0));
   const seen = new Set();
   const groups = SYSTEMS.map((s) => ({ s, ids: s.indicators.filter((id) => !seen.has(id) && seen.add(id)) })).filter((g) => g.ids.length);
-  return pageHead('Analysis', 'Every reading and multi-day trend rule in NOVACARE, applied to the whole crew. Most urgent first.') +
+  const ahead = crew.filter((m) => !m.me && (m.predict || []).length);
+  return pageHead('Analysis', 'Every reading, trend and prediction in NovaCare, applied to the whole crew. Most urgent first.') +
+  predictCard(Predict.all()) +
+  (ahead.length ? `<section class="card"><div class="card-h"><h2>${icon('chart')}Risks ahead for the crew</h2><span class="muted small">If current trends continue</span></div>
+    <ul class="findings">${ahead.flatMap((m) => m.predict.map((p) => `<li class="${lc(p.level)}">${mark(p.level)}<div><b>${esc(firstName(m))}: ${esc(p.title)}</b><p>${esc(p.text)}</p></div></li>`)).join('')}</ul></section>` : '') +
   `<div class="an-grid">
     <section class="card"><div class="card-h"><h2>How each astronaut is doing</h2></div>
       <ul class="verdicts">${ranked.map(({ m, i, v }) => `<li class="${lc(v.level)}">

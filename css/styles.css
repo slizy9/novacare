@@ -1443,3 +1443,18 @@ body { background: var(--bg); }
 .rem-note > .ic { width: 18px; height: 18px; color: var(--sand-ink); flex: none; }
 .rem-note p { flex: 1; }
 @media (max-width: 520px) { .rem-list li { flex-wrap: wrap; } .rem-list li .grow { flex-basis: calc(100% - 52px); } .rem-list li .btn { flex: 1; } }
+
+/* ---------- predicted risks ---------- */
+.predict .card-h h2 { display: flex; align-items: center; gap: 8px; } .predict .card-h h2 .ic { color: var(--sand-ink); }
+.pred { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.pred li { display: grid; gap: 8px; align-content: start; padding: 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); }
+.pred li.l2, .pred li.l3 { border-color: color-mix(in srgb, var(--c) 40%, var(--line)); background: color-mix(in srgb, var(--c) 6%, var(--surface)); }
+.pred-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .pred-h b { font-size: 14.5px; }
+.pred-n { display: flex; align-items: center; gap: 10px; }
+.pred-n span { display: grid; } .pred-n small { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em; }
+.pred-n b { font: 650 20px/1.2 var(--sans); letter-spacing: -0.02em; }
+.pred-n span:last-child b { color: var(--c); }
+.pred-arrow .ic { width: 16px; height: 16px; color: var(--faint); }
+.pred p { margin: 0; font-size: 13px; color: var(--muted); }
+.pred-do { color: var(--ink) !important; } .pred-do b { color: var(--c); }
+.pred-basis { font-size: 11.5px !important; color: var(--faint) !important; }

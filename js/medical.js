@@ -290,6 +290,15 @@ const Assistant = (() => {
     return { html, say: `${e.title}. ${e.a} ${e.steps[0]} ${e.esc}`, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : null, kb: hits.map((h) => h.e) };
   }
 
+  function predictAnswer(person) {
+    const list = person.me ? Predict.all() : (person.predict || []);
+    const risky = list.filter((p) => p.level > 0);
+    if (!risky.length) return { html: `<p>No risks ahead at the current trends${person.me ? '' : ' for ' + esc(person.name.split(' ')[0])}. Keep logging so the predictions stay accurate.</p>`, say: 'No risks ahead at the current trends.' };
+    return { html: `<p><b>If nothing changes:</b></p><ul class="ans-list">${risky.map((p) => `<li class="${lc(p.level)}"><b>${esc(p.title)}</b> — ${esc(p.text)}${p.act ? ` <em>${esc(p.act[0])}</em>` : ''}</li>`).join('')}</ul>
+      <p class="src">${icon('shield')}<span>Source: NovaCare prediction engine (trend projection, dose rate, bone-loss model) on ${person.me ? 'your' : 'their'} logged readings.</span></p>`,
+      say: `${risky.length} risks ahead. ${risky[0].title}. ${risky[0].text}` };
+  }
+
   /** Nothing on board covers it: say so and escalate — never improvise. */
   function noProtocol() {
     const env = Engine.env();
@@ -360,6 +369,7 @@ const Assistant = (() => {
     const aboutMine = /\bmy\b|\bmi\b|\bmis\b|is (his|her|their)|how is|how are|como esta|como estan|what is my|cual es mi|level|nivel/.test(t);
     const ind = IND_WORDS.find(([, rx]) => rx.test(t));
     if (ind && aboutMine) return indicatorAnswer(ind[0], person);
+    if (/risk|riesgo|predict|predic|forecast|future|futuro|going to happen|va a pasar|ahead/.test(t)) return predictAnswer(person);
     if (/how am i|como estoy|my status|mi estado|readiness|summary|resumen|how is my health|como esta mi salud/.test(t)) return statusAnswer(person);
     if (/\btoday\b|\bhoy\b|routine|rutina|\bdue\b|pending|pendiente|check.?in|what should i do today|que debo hacer hoy|que tengo que hacer/.test(t)) return person.me ? todayAnswer() : statusAnswer(person);
     // 3) onboard knowledge base: medical, wellbeing and ship protocols, searched on the device
@@ -374,7 +384,7 @@ const Assistant = (() => {
     // 4) nothing covers it: escalate
     return noProtocol();
   }
-  const SUGGEST = ['How am I doing?', 'Is my blood pressure OK?', 'I have a headache', 'I feel anxious', 'I can\'t sleep', 'Cabin CO₂ is high', 'Can I take ibuprofen?', 'Can I give Mei amoxicillin?'];
+  const SUGGEST = ['What risks do I have ahead?', 'How am I doing?', 'Is my blood pressure OK?', 'I have a headache', 'I feel anxious', 'I can\'t sleep', 'Cabin CO₂ is high', 'Can I take ibuprofen?', 'Can I give Mei amoxicillin?'];
   const SUGGEST_EMG = ['What medicine can I give?', 'Can I give amoxicillin?', 'Is it safe to give aspirin?', 'What are their allergies?', 'Do we have oxygen?'];
   return { answer, SUGGEST, SUGGEST_EMG, drugAnswer };
 })();

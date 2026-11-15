@@ -239,7 +239,7 @@ function viewLobby() {
         <p class="muted small">Use every section on your own, or join a mission to share your status with a crew on this device.</p>
         <div class="lm-acts"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></section>`;
   }
-  return hero + `<div class="lobby-grid">${today}${mission}</div>`;
+  return hero + `<div class="lobby-grid">${today}${mission}</div>` + predictCard(Predict.all(), { limit: 3, more: true });
 }
 
 /* ---------- Mission tab: "Status" and "Missions" (switch, create, join, browse) ---------- */

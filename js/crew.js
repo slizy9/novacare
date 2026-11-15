@@ -98,6 +98,7 @@ const Crew = (() => {
         advisories: adv.map((a) => ({ key: a.key, title: a.title, level: a.level, trend: !!a.trend, ind: a.ind, detail: a.detail, who: a.esc.who })),
         dose: Engine.cumulativeDose(), checkedInToday: Engine.checkedIn(s.days[md]),
         med: typeof Medical !== 'undefined' ? Medical.of(s, meta.sim ? meta.id : null) : null, // allergies etc., for the emergency flow
+        predict: typeof Predict !== 'undefined' ? Predict.all().filter((p) => p.level > 0).slice(0, 3).map(({ key, title, level, text, when, now, future }) => ({ key, title, level, text, when, now, future })) : [], // risks ahead
         compliance: last7.length ? last7.filter((x) => x.checkedIn).length / last7.length : 0,
         updatedAt: meta.updatedAt || new Date().toISOString(), cached: !!meta.cached,
       };
