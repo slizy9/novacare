@@ -118,11 +118,11 @@ function ring(score) {
 /* ---------- views ---------- */
 /* App shell: four sections, Personal has its own sub-views. */
 const SECTIONS = [
-  { v: 'lobby', label: 'Lobby', icon: 'home', c: '#2f6bff', desc: 'Your status and a quick look at the mission' },
-  { v: 'personal', label: 'Personal', icon: 'user', c: '#f0388a', desc: 'Your health, today\'s routine and status' },
-  { v: 'crew', label: 'Crew', icon: 'users', c: '#7c5cff', desc: 'Your crew\'s status and emergency help' },
-  { v: 'mission', label: 'Mission', icon: 'rocket', c: '#e8590c', desc: 'Mission progress, switch or join missions' },
-  { v: 'analysis', label: 'Analysis', icon: 'bars', c: '#12a594', desc: 'Who is doing well and who needs help' },
+  { v: 'lobby', label: 'Home', icon: 'home', c: '#2f6bff', desc: 'How you are today and what to do next' },
+  { v: 'personal', label: 'My health', icon: 'user', c: '#f0388a', desc: 'Your readings, routine and medical profile' },
+  { v: 'crew', label: 'Crew', icon: 'users', c: '#7c5cff', desc: 'Your crewmates, their allergies and the ship inventory' },
+  { v: 'mission', label: 'Mission', icon: 'rocket', c: '#e8590c', desc: 'Mission status, the log, and switching missions' },
+  { v: 'analysis', label: 'Insights', icon: 'bars', c: '#12a594', desc: 'Who is doing well and who needs help' },
 ];
 const PERSONAL = [
   { v: 'overview', label: 'Overview', icon: 'pulse' },
@@ -148,7 +148,7 @@ function renderTop() {
       ${syncChip()}
       <button class="chip icon-only" data-act="theme" title="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode" aria-label="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
       ${Missions.has() ? `<div class="md" title="Mission day — changes at midnight">MD <b class="num">${state.md}</b></div>` : ''}
-      <div class="user-chip" title="${u.guest ? 'Guest — data stays on this device' : `Signed in as ${esc(u.id)}`}"><span class="avatar" aria-hidden="true">${esc(initials(state.name || u.name))}</span><span class="uname">${esc(state.name || u.name)}</span><button data-act="logout" title="Sign out" aria-label="Sign out">${icon('logout')}</button></div>
+      <div class="user-chip" title="${u.guest ? 'Guest — data stays on this device' : `Signed in as ${esc(u.id)}`}"><span class="avatar ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : esc(initials(state.name || u.name))}</span><span class="uname">${esc(state.name || u.name)}</span><button data-act="logout" title="Sign out" aria-label="Sign out">${icon('logout')}</button></div>
     </div>`;
 }
 
@@ -168,9 +168,12 @@ function viewLobby() {
   const has = Missions.has(); const locked = Missions.locked(); const cur = Missions.current();
   const crew = Crew.members(); const me = crew[0]; const v = Crew.verdict(me); const due = Engine.dueList().length;
   const alerts = Crew.active().length; const len = missionLength();
-  const lead = locked ? 'Welcome aboard. Create your own mission or join one to start tracking your health with a crew.'
-    : has ? `Mission day <b>${state.md}</b> of ${len} on <b>${esc(cur.name)}</b> · ${esc(ENVIRONMENTS[cur.env].short)}.`
-    : 'Your personal space. Log check-ins and explore every section — join or create a mission any time from the Mission tab.';
+  const pct = clamp(state.md / len, 0, 1); const left = Math.max(0, len - state.md);
+  const lead = locked ? '<p class="lobby-lead">Welcome aboard. Create your own mission or join one to start tracking your health with a crew.</p>'
+    : has ? `<div class="day-prog" role="progressbar" aria-valuemin="1" aria-valuemax="${len}" aria-valuenow="${state.md}" aria-label="Mission day ${state.md} of ${len}">
+        <div class="day-prog-t"><span>Day <b class="num">${state.md}</b> of ${len}</span><span>${left ? `${left} day${left === 1 ? '' : 's'} to go` : 'Last day'}</span></div>
+        <div class="day-prog-bar"><i style="width:${Math.max(2, pct * 100)}%"></i></div></div>`
+    : '<p class="lobby-lead">Your personal space. Log check-ins and explore every section — join or create a mission any time from the Mission tab.</p>';
   const day = Engine.today(); const done = checkinDone(day);
   const cta = locked
     ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
@@ -191,7 +194,7 @@ function viewLobby() {
   const hero = `<section class="card hero lobby-hero">
       <div class="hero-main"><p class="lobby-clock" id="lobby-clock">${clockHtml()}</p>
         <h1 class="hero-title">${greeting()}${first ? `, <em>${esc(first)}.</em>` : '.'}</h1>
-        <p class="lobby-lead">${lead}</p>
+        ${lead}
         ${choice}
         <div class="hero-cta">${cta}</div></div>
       ${locked ? '' : `<div class="hero-live"><div class="glass"><p class="glass-h"><span>Heart rate · recent</span><span class="live"><i></i>Live</span></p>
@@ -229,8 +232,6 @@ function viewLobby() {
     const frac = clamp(state.md / len, 0, 1);
     mission = `<section class="card lobby-mission">
         <div><span class="kicker">${esc(ENVIRONMENTS[cur.env].short)}</span><h2>${esc(cur.name)}</h2></div>
-        <div class="lm-prog"><div class="lm-prog-t"><span>Mission day <b class="num">${state.md}</b> of ${len}</span><span class="muted">${Math.round(frac * 100)}%</span></div>
-          <div class="track" role="progressbar" aria-valuemin="1" aria-valuemax="${len}" aria-valuenow="${state.md}" aria-label="Mission progress"><i style="width:${frac * 100}%"></i></div></div>
         <ul class="lm-list">
           <li>${icon('users')}<span>Crew on track</span><b class="num">${onTrack}/${crew.length}</b></li>
           <li class="${alerts ? 'hot' : ''}">${icon('siren')}<span>Active emergencies</span><b class="num">${alerts}</b></li>
@@ -244,7 +245,20 @@ function viewLobby() {
         <p class="muted small">Use every section on your own, or join a mission to share your status with a crew on this device.</p>
         <div class="lm-acts"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></section>`;
   }
-  return hero + `<div class="lobby-grid">${today}${mission}</div>` + predictCard(Predict.all(), { limit: 2, more: true });
+  return hero + guideHtml() + `<div class="lobby-grid">${today}${mission}</div>` + predictCard(Predict.all(), { limit: 2, more: true });
+}
+
+/* First visit: the three things to know, in plain words. Hidden for good with "Got it". */
+function guideHtml() {
+  if (state.guideDone) return '';
+  const step = (n, ic, t, d, act, label) => `<li><span class="gd-n">${n}</span><div><b>${icon(ic)}${t}</b><p>${d}</p></div>${act ? `<button class="btn ghost sm" ${act}>${label}</button>` : ''}</li>`;
+  return `<section class="card guide" aria-label="How NovaCare works">
+    <div class="card-h"><div><h2>How NovaCare works</h2><p class="muted small">Three things — that’s all you need.</p></div><button class="btn primary sm" data-act="guidedone">Got it</button></div>
+    <ol class="gd">
+      ${step(1, 'pulse', 'Check in once a day', 'About a minute: how you feel and your vitals. NovaCare tells you if anything needs attention.', 'data-act="checkin"', 'Check in')}
+      ${step(2, 'siren', 'Press Help when you need it', 'The red Help button is on every screen. Your whole crew is alerted at once.', '', '')}
+      ${step(3, 'care', 'Fill in your medical profile', 'Allergies and medication — your crew sees them in an emergency.', 'data-act="sub" data-v="medical"', 'Fill in')}
+    </ol></section>`;
 }
 
 /* ---------- Mission tab: "Status" and "Missions" (switch, create, join, browse) ---------- */
@@ -299,7 +313,7 @@ function overviewTop() {
   const item = (act, v, ic, label) => `<button class="hl" data-act="${act}" ${v ? `data-v="${v}"` : ''}>${icon(ic)}<span>${label}</span>${icon('next', 'hl-go')}</button>`;
   return `<div class="ov">
     <div class="ov-col">
-      <section class="card ov-id">${crewPortrait(state.name || u.name)}
+      <section class="card ov-id"><button class="ov-photo" data-act="photopick" title="Change your profile photo" aria-label="Change your profile photo">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : crewPortrait(state.name || u.name)}<span class="ov-photo-edit">${icon('plus')}${myPhoto() ? 'Change' : 'Add photo'}</span></button>
         <div><h2>${esc(state.name || u.name)}</h2><p>${icon('users')}${esc(u.role)}</p><p>${icon('rocket')}${esc(mission.name)}</p><p>${icon('clock')}Mission day ${state.md}</p></div></section>
       <section class="card ov-kv"><h2>Key Vitals</h2>
         <button class="ov-hr ${lc(hr.level)}" data-act="detail" data-id="hr" aria-label="Heart rate, open trend"><span class="ov-heart">${icon('heart')}</span>
@@ -361,6 +375,27 @@ setInterval(() => {
   if (Engine.calendarDay()) { Engine.save(); if (!ui.modal) render(); else renderTop(); toast(`Mission day ${state.md} has started`); return; }
   const c = $('#lobby-clock'); if (c) c.innerHTML = clockHtml();
 }, 10000);
+
+/* ---------- profile photo ---------- */
+const myPhoto = () => (state ? photoFor(state.name || (Auth.user() && Auth.user().name), state.photo) : '');
+function pickPhoto() {
+  let f = $('#photo-file');
+  if (!f) { f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.id = 'photo-file'; f.hidden = true; document.body.appendChild(f); }
+  f.value = ''; f.click();
+}
+/* Crop to a centred square and shrink to 256 px, so the photo is small enough to sync with the crew. */
+function savePhoto(file) {
+  if (!file || !/^image\//.test(file.type)) { toast('Choose an image file'); return; }
+  const url = URL.createObjectURL(file); const img = new Image();
+  img.onload = () => {
+    const s = Math.min(img.naturalWidth, img.naturalHeight); const c = document.createElement('canvas'); c.width = c.height = 256;
+    c.getContext('2d').drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, 256, 256);
+    URL.revokeObjectURL(url);
+    state.photo = c.toDataURL('image/jpeg', 0.82); Engine.save(); Crew.refresh(true); render(); toast('Profile photo saved — your crew will see it');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('That image could not be opened'); };
+  img.src = url;
+}
 
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
 
@@ -632,7 +667,6 @@ function settingsHtml() {
         ${row('Planned length', `<input id="set-len" class="text num sm" type="number" min="7" max="1200" value="${missionLength()}" aria-label="Planned length in days"> <span class="muted small">days</span>`)}
         ${row('Location', `<select id="set-env" class="text" aria-label="Location">${Object.entries(ENVIRONMENTS).map(([k, e]) => `<option value="${k}" ${state.env === k ? 'selected' : ''}>${esc(e.short)}</option>`).join('')}</select>`,
           `${esc(env.gravity)} · ${env.rad} mSv/day · ${esc(env.comm)}`)}
-        ${row('Simulated demo crew', `<label class="switch"><input type="checkbox" id="set-sim" ${state.showSim !== false ? 'checked' : ''}><span></span></label>`, 'Three synthetic astronauts, labelled “Simulated”. Turn off for a real mission.')}
         ${row('Leave this mission', `<button class="btn ghost danger sm" data-act="leavemission" data-code="${esc(u.crew)}">Leave</button>`)}`
         : `<p class="muted small">You are not on a mission. <button class="link" data-act="missiontab" data-v="missions">Create or join one</button>.</p>`)}
       ${sec('checks', 'Check-ins', `
@@ -641,6 +675,8 @@ function settingsHtml() {
         ${row('Sync', `<span class="set-ok ${sc}"><span class="dot"></span>${esc(sl)}</span> ${Auth.cloud() ? '<button class="btn ghost sm" data-act="syncnow">Sync now</button>' : ''}`, esc(stip))}
         ${row('For your flight surgeon', '<button class="btn ghost sm" data-act="report">Health report</button> <button class="btn ghost sm" data-act="export">Raw data</button>')}`)}
       ${sec('user', 'Account & display', `
+        ${row('Profile photo', `<span class="avatar lg ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : esc(initials(state.name || u.name))}</span>
+          <button class="btn ghost sm" data-act="photopick">${myPhoto() ? 'Change' : 'Add photo'}</button>${myPhoto() ? '<button class="btn quiet sm" data-act="photoremove">Remove</button>' : ''}`, 'Your crew sees it on your card.')}
         ${row('Your name', `<input id="name" class="text" type="text" maxlength="40" value="${esc(state.name || '')}" placeholder="Your name" aria-label="Your name">`)}
         ${row('Role', `<span>${esc(u.role)}</span>`, 'Fixed when the account was created.')}
         ${row('Dark mode', `<label class="switch"><input type="checkbox" id="set-dark" ${document.documentElement.dataset.theme === 'dark' ? 'checked' : ''}><span></span></label>`, 'Easier on the eyes during the sleep cycle.')}
@@ -688,6 +724,25 @@ const LOCKED = [
 function authHtml() {
   const reg = ui.auth === 'register';
   const f = (id, label, type, ic, extra = '') => `<div class="field"><label for="au-${id}" class="vh">${label}</label><div class="inp">${icon(ic)}<input id="au-${id}" name="${id}" type="${type}" aria-label="${label}" ${extra}>${type === 'password' ? `<button type="button" class="eye" data-act="pwshow" aria-label="Show password">${icon('eye')}</button>` : ''}</div></div>`;
+  const shell = (inner, foot) => `<section class="auth">
+    <div class="auth-photo" aria-hidden="true"><img src="img/station.jpg" alt=""></div>
+    <div class="auth-main"><div class="auth-title"><h1>${SWOOSH}NovaCare</h1><p>Health Monitoring System</p></div>
+      <div class="card auth-card">${inner}</div>${foot}</div></section>`;
+  const back = '<p class="auth-switch"><button type="button" class="link" data-act="authtab" data-v="login">Back to sign in</button></p>';
+  if (ui.auth === 'forgot') {
+    return shell(ui.resetSent
+      ? `<h2 class="auth-h">Check your email</h2><p class="muted">If <b>${esc(ui.resetSent)}</b> has an account, a link to choose a new password is on its way. Open it on this device.</p>
+        <p class="muted small">Nothing after a few minutes? Check spam, or ask again.</p><button type="button" class="btn ghost big" data-act="resetagain">Send again</button>`
+      : `<h2 class="auth-h">Forgot your password?</h2><p class="muted small">Enter the email of your account and we’ll send you a link to choose a new one.</p>
+        <form id="forgot-form" class="fields" novalidate>${f('email', 'Email', 'email', 'mail', 'autocomplete="username" maxlength="80" autocapitalize="off" spellcheck="false" placeholder="Email"')}
+          <p class="auth-err" role="alert">${esc(ui.authErr)}</p><button class="btn primary big" type="submit" ${ui.busy ? 'disabled' : ''}>Send reset link</button></form>`, back);
+  }
+  if (ui.auth === 'newpw') {
+    return shell(`<h2 class="auth-h">Choose a new password</h2>
+      <form id="newpw-form" class="fields" novalidate>${f('password', 'New password', 'password', 'lock', 'autocomplete="new-password" placeholder="New password (at least 6 characters)"')}
+        ${f('confirm', 'Confirm password', 'password', 'lock', 'autocomplete="new-password" placeholder="Confirm new password"')}
+        <p class="auth-err" role="alert">${esc(ui.authErr)}</p><button class="btn primary big" type="submit" ${ui.busy ? 'disabled' : ''}>Save and sign in</button></form>`, back);
+  }
   return `<section class="auth">
     <div class="auth-photo" aria-hidden="true"><img src="img/station.jpg" alt=""></div>
     <div class="auth-main">
@@ -700,7 +755,7 @@ function authHtml() {
           ${reg ? `<div class="field"><label for="au-role" class="vh">Role</label><div class="inp">${icon('users')}<select id="au-role" name="role" aria-label="Role">${ROLES.map((r, i) => `<option ${i === 2 ? 'selected' : ''}>${r}</option>`).join('')}</select></div></div>
             <p class="hint">Pick your role carefully: it is fixed once your account is created. After signing up you create a mission or join one from the lobby.</p>` : ''}
           ${f('password', 'Password', 'password', 'lock', `autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="${reg ? 'Password (at least 6 characters)' : 'Password'}"`)}
-          ${reg ? f('confirm', 'Confirm password', 'password', 'lock', 'autocomplete="new-password" placeholder="Confirm password"') : `<label class="remember"><input type="checkbox" name="remember" checked> Keep me signed in on this device</label>`}
+          ${reg ? f('confirm', 'Confirm password', 'password', 'lock', 'autocomplete="new-password" placeholder="Confirm password"') : `<div class="auth-row"><label class="remember"><input type="checkbox" name="remember" checked> Keep me signed in</label><button type="button" class="link" data-act="authtab" data-v="forgot">Forgot password?</button></div>`}
           <p class="auth-err" role="alert">${esc(ui.authErr)}</p>
           <button class="btn primary big" type="submit" ${ui.busy ? 'disabled' : ''}>${reg ? 'Create account' : 'Sign In'}</button>
         </form>
@@ -801,6 +856,7 @@ function countUp(root) {
 }
 let lastPage = '';
 function render() {
+  if (Auth.recovering()) { ui.auth = 'newpw'; lastPage = ''; renderAuth(); return; } // opened from a password-reset email
   if (!Auth.user()) { lastPage = ''; renderAuth(); return; }
   document.body.classList.remove('signed-out');
   if (Engine.calendarDay()) Engine.save();
@@ -830,6 +886,8 @@ function renderSos() {
   b.innerHTML = `${icon('siren')}<span>${mine ? 'Help requested' : 'Help'}</span>`;
   b.setAttribute('aria-label', mine ? 'Help requested — open to send another request' : 'Ask your crew for help');
   b.classList.toggle('sent', !!mine);
+  const nav = $('#nav'); // keep it above the bottom navigation on phones
+  if (nav) document.documentElement.style.setProperty('--navh', `${getComputedStyle(nav).position === 'fixed' ? nav.offsetHeight : 0}px`);
 }
 
 function renderModal() {
@@ -942,6 +1000,8 @@ const actions = {
     ui.modal = { type: 'emergency', step: 'protocol', id: a.aboutId, name: a.aboutName, alertId: a.id, em: a.type, done: {} }; renderModal();
   },
   help() { ui.helpBack = ui.modal && ui.modal.type !== 'help' ? ui.modal : null; ui.modal = { type: 'help', urgent: true, why: [] }; renderModal(); },
+  guidedone() { state.guideDone = true; Engine.save(); render(); },
+  photoremove() { state.photo = 'none'; Engine.save(); Crew.refresh(true); render(); toast('Profile photo removed'); },
   logfilter(d) { ui.logFilter = d.v; ui.logMsg = ''; render(); },
   logexport() { download(`novacare-log-${Auth.user().crew || 'personal'}-MD${state.md}.txt`, MissionLog.toText(MissionLog.entries()), 'text/plain'); },
   testalarm() { announceAlerts([{ id: 'test', type: 'assist', fromName: 'Alarm test', aboutName: '', note: 'This is how a call for help sounds' }]); },
@@ -953,9 +1013,10 @@ const actions = {
   emgdone(d) { if (!confirm('Mark this emergency as resolved for the whole crew?')) return; Crew.resolve(d.id); render(); toast('Emergency marked resolved'); },
   togglesim() { state.showSim = true; Engine.save(); Crew.refresh(true); render(); },
   mreport() { download(`novacare-mission-${Auth.user().crew}-MD${state.md}.txt`, missionReport(), 'text/plain'); },
-  authtab(d) { ui.auth = d.v; ui.authErr = ''; renderAuth(); },
+  authtab(d) { ui.auth = d.v; ui.authErr = ''; ui.resetSent = ''; renderAuth(); },
+  resetagain() { ui.resetSent = ''; ui.authErr = ''; renderAuth(); },
   guest() {
-    Auth.guest(); Engine.load(); ui.view = 'lobby'; ui.sub = 'overview'; ui.sys = null; ui.crewTab = 'mates';
+    Auth.guest(); Engine.load(); setupGuest(); ui.view = 'lobby'; ui.sub = 'overview'; ui.sys = null; ui.crewTab = 'mates';
     render(); window.scrollTo(0, 0); Sync.run(); toast('Exploring as a guest — data stays on this device');
   },
   missiontab(d) { navigate(() => { ui.view = 'mission'; ui.missionTab = d.v; ui.modal = null; render(); }); },
@@ -1108,9 +1169,23 @@ function statusNext() {
   m.result = r; render();
 }
 
+/* The guest is Bruno, already on a preset mission with a month of readings, so everything can be
+   tried at once. Set up once per device; it stays on the device and never syncs. */
+const GUEST_MISSION = { code: 'NOVA-1', name: 'Mission NOVA-1', days: 180 };
+function setupGuest() {
+  const u = Auth.user(); if (!u || !u.guest || state.guestReady) return;
+  state = keepAccount(Engine.demo());
+  state.name = u.name; state.guestReady = true; state.guideDone = false;
+  state.missions = [{ code: GUEST_MISSION.code, name: GUEST_MISSION.name, role: 'member', at: new Date().toISOString() }];
+  state.archive = {}; state.missionName = GUEST_MISSION.name; state.missionDays = GUEST_MISSION.days;
+  delete state.startDate; Engine.calendarDay(); // the demo's day 34 is today, and days keep passing with the calendar
+  Auth.updateProfile({ crew: GUEST_MISSION.code });
+  Engine.today(); Engine.save(); Crew.refresh(true);
+}
+
 /* Loading the demo or restarting replaces the readings, never the person's missions, profile or name. */
 function keepAccount(next) {
-  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays', 'updateEvery', 'log'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
+  ['missions', 'archive', 'profile', 'showSim', 'missionName', 'missionDays', 'updateEvery', 'log', 'photo', 'guideDone'].forEach((k) => { if (state && state[k] !== undefined) next[k] = state[k]; });
   if (state && state.name) next.name = state.name;
   return next;
 }
@@ -1143,11 +1218,25 @@ document.addEventListener('click', (ev) => {
   if (ev.target.id === 'modal') { actions.close(); return; }
   const el = ev.target.closest('[data-act]'); if (!el) return;
   if (el.dataset.act === 'invupload') { actions.invupload(); return; } // keep the user gesture for the file picker
+  if (el.dataset.act === 'photopick') { pickPhoto(); return; }
   ev.preventDefault(); ev.stopPropagation();
   actions[el.dataset.act](el.dataset, el);
 });
 document.addEventListener('submit', (ev) => {
   if (ev.target.id === 'auth-form') { ev.preventDefault(); if (!ui.busy) submitAuth(ev.target); }
+  if (ev.target.id === 'forgot-form' && !ui.busy) {
+    ev.preventDefault(); const email = String(new FormData(ev.target).get('email') || '').trim();
+    ui.busy = true; ui.authErr = ''; renderAuth();
+    Auth.requestReset(email).then(() => { ui.resetSent = email; }).catch((e) => { ui.authErr = e.message; })
+      .finally(() => { ui.busy = false; renderAuth(); const i = $('#au-email'); if (i && !ui.resetSent) i.value = email; });
+  }
+  if (ev.target.id === 'newpw-form' && !ui.busy) {
+    ev.preventDefault(); const d = Object.fromEntries(new FormData(ev.target));
+    ui.busy = true; ui.authErr = ''; renderAuth();
+    Auth.setNewPassword(d.password, d.confirm).then(() => {
+      ui.busy = false; ui.auth = 'login'; ui.view = 'lobby'; Engine.load(); render(); toast('Password changed — you are signed in'); Sync.run();
+    }).catch((e) => { ui.busy = false; ui.authErr = e.message; renderAuth(); });
+  }
   if (ev.target.id === 'mission-new-form') {
     ev.preventDefault(); const d = Object.fromEntries(new FormData(ev.target));
     if (!String(d.name || '').trim()) { ui.modal.err = 'Give the mission a name.'; ui.modal.env = d.env; renderModal(); return; }
@@ -1213,6 +1302,7 @@ document.addEventListener('change', (ev) => {
   if (ev.target.id === 'set-len') { const v = Math.round(+ev.target.value); if (v >= 7 && v <= 1200) { state.missionDays = v; Engine.save(); render(); } }
   if (ev.target.id === 'set-every') { state.updateEvery = +ev.target.value; Engine.save(); toast(`Status update every ${state.updateEvery} hours`); }
   if (ev.target.id === 'ask-speak' && ui.modal) ui.modal.speak = ev.target.checked;
+  if (ev.target.id === 'photo-file' && ev.target.files[0]) savePhoto(ev.target.files[0]);
   if (ev.target.id === 'set-env') { state.env = ev.target.value; Engine.save(); render(); toast(`Location: ${ENVIRONMENTS[state.env].short}`); }
   if (ev.target.id === 'set-dark') { const t = ev.target.checked ? 'dark' : 'light'; document.documentElement.dataset.theme = t; try { localStorage.setItem('novacare.theme', t); } catch (e) { /* ignore */ } renderTop(); }
   if (ev.target.id === 'set-sim') { state.showSim = ev.target.checked; Engine.save(); Crew.refresh(true); render(); }
@@ -1323,8 +1413,8 @@ setInterval(() => Reminders.tick(), 60000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.reminder && Auth.user()) Reminders.run(e.data.reminder); });
 const remParam = new URLSearchParams(location.search).get('reminder'); if (remParam) setTimeout(() => { if (Auth.user()) Reminders.run(remParam); }, 1500);
 LocalLLM.ping(); // is the ship terminal's local model running? (never on the public website)
-if (Auth.restore()) Engine.load();
-else if (!Auth.hasUsers()) ui.auth = 'register';
+if (Auth.restore()) { if (Auth.user().guest) Auth.guest(); Engine.load(); setupGuest(); } // a guest from an older version becomes Bruno too
+Auth.onRecovery(() => render()); // the reset link was opened: ask for the new password
 render();
 if (Auth.user()) Sync.run();
 

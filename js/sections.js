@@ -21,7 +21,8 @@ function pageHead(title, desc, actions = '') {
 }
 
 function avatar(m, i, size = '') {
-  return `<span class="av ${size}" style="--av:${crewColor(i)}" aria-hidden="true">${initials(m.name)}</span>`;
+  const ph = m.photo || photoFor(m.name, null);
+  return `<span class="av ${size} ${ph ? 'ph' : ''}" style="--av:${crewColor(i)}" aria-hidden="true">${ph ? `<img src="${esc(ph)}" alt="" loading="lazy">` : initials(m.name)}</span>`;
 }
 
 function verdictPill(v) {
@@ -72,8 +73,8 @@ function viewCrew() {
     `<button class="btn ghost" data-act="settings">${icon('settings')}Mission settings</button>`) + crewTabs();
   if (!mates.length) {
     return head + `<section class="card empty-state">${icon('users', 'lg')}<h2>No crewmates yet</h2>
-      <p>${u.crew ? `Crewmates appear here when they join with the same mission code: <b class="code">${esc(u.crew)}</b>.` : 'Join or create a mission from the Mission tab to see a real crew here.'} You can also show the simulated demo crew from Mission settings.</p>
-      <button class="btn primary" data-act="togglesim">Show simulated demo crew</button></section>`;
+      <p>${u.crew ? `Share your mission code and your crewmates appear here as soon as they join: <b class="code">${esc(u.crew)}</b>` : 'Join or create a mission from the Mission tab to see your crew here.'}</p>
+      ${u.crew ? `<button class="btn primary" data-act="copycode" data-code="${esc(u.crew)}">${icon('copy')}Copy the code</button>` : `<button class="btn primary" data-act="missiontab" data-v="missions">${icon('rocket')}Choose a mission</button>`}</section>`;
   }
   return head + `<div class="crew-grid">${mates.map(({ m, i }) => {
     const v = Crew.verdict(m); const top = m.advisories[0];
@@ -307,7 +308,7 @@ function viewAnalysis() {
   const seen = new Set();
   const groups = SYSTEMS.map((s) => ({ s, ids: s.indicators.filter((id) => !seen.has(id) && seen.add(id)) })).filter((g) => g.ids.length);
   const ahead = crew.filter((m) => !m.me && (m.predict || []).length);
-  return pageHead('Analysis', 'Every reading, trend and prediction in NovaCare, applied to the whole crew. Most urgent first.') +
+  return pageHead('Insights', 'Who is doing well and who needs help — most urgent first.') +
   predictCard(Predict.all()) +
   (ahead.length ? `<section class="card"><div class="card-h"><h2>${icon('chart')}Risks ahead for the crew</h2><span class="muted small">If current trends continue</span></div>
     <ul class="findings">${ahead.flatMap((m) => m.predict.map((p) => `<li class="${lc(p.level)}">${mark(p.level)}<div><b>${esc(firstName(m))}: ${esc(p.title)}</b><p>${esc(p.text)}</p></div></li>`)).join('')}</ul></section>` : '') +

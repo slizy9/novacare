@@ -2,6 +2,15 @@
    Engine functions read the global `state`, so another astronaut is evaluated by swapping
    their mission data in for a moment (withState). */
 
+/* Profile photos: each person uploads their own (state.photo, a small JPEG kept with their data).
+   A few crew members have one set for them until they choose their own; 'none' means no photo. */
+const KNOWN_PHOTOS = { 'bruno llobet chanto': 'img/crew/bruno-llobet-chanto.jpg' };
+const normName = (n) => String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ');
+function photoFor(name, own) { if (own === 'none') return ''; return own || KNOWN_PHOTOS[normName(name)] || ''; }
+
+/* The mission log was reset at this moment: earlier alerts, notes and log lines are left out. */
+const LOG_EPOCH = '2026-11-15T03:10:00Z';
+
 const DEFAULT_CREW = 'NOVA-1'; // legacy default mission code (new accounts start with no mission)
 const ROLES = ['Commander', 'Pilot', 'Flight Engineer', 'Mission Specialist', 'Crew Medical Officer', 'Payload Specialist'];
 
@@ -94,6 +103,7 @@ const Crew = (() => {
       const last7 = days.slice(-7);
       return {
         id: meta.id, name: meta.name || s.name || 'Crew member', role: meta.role || '', sim: !!meta.sim, me: !!meta.me,
+        photo: photoFor(meta.name || s.name, s.photo),
         md, env: s.env, readiness: Engine.readiness(), days, latest, systems,
         advisories: adv.map((a) => ({ key: a.key, title: a.title, level: a.level, trend: !!a.trend, ind: a.ind, detail: a.detail, who: a.esc.who })),
         dose: Engine.cumulativeDose(), checkedInToday: Engine.checkedIn(s.days[md]),
@@ -137,7 +147,8 @@ const Crew = (() => {
     stamp = k;
     const u = Auth.user();
     const me = summarize(state, { id: u.id, name: state.name || u.name, role: u.role, me: true });
-    const mates = [...(Auth.cloud() ? cloudMates() : localMates()), ...(state.showSim !== false ? simSummaries() : [])];
+    // only real people who registered and joined this mission (the simulated demo crew was retired)
+    const mates = Auth.cloud() ? cloudMates() : localMates();
     list = [me, ...mates];
     return list;
   }
@@ -194,7 +205,8 @@ const Crew = (() => {
 
   /* ---------- emergency alerts ---------- */
   const alertKey = () => 'novacare.alerts:' + (Auth.user() && Auth.user().crew ? Auth.user().crew : '-');
-  const readAlerts = () => { try { return JSON.parse(localStorage.getItem(alertKey())) || []; } catch (e) { return []; } };
+  // alerts raised before the log was reset (LOG_EPOCH) no longer exist for anyone
+  const readAlerts = () => { try { return (JSON.parse(localStorage.getItem(alertKey())) || []).filter((a) => !a.createdAt || a.createdAt >= LOG_EPOCH); } catch (e) { return []; } };
   const writeAlerts = (a) => { try { localStorage.setItem(alertKey(), JSON.stringify(a.slice(-100))); } catch (e) { /* ignore */ } };
   const uuid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID()
     : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));

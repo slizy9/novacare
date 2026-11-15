@@ -15,6 +15,7 @@ const Auth = (() => {
   const USERS_KEY = 'novacare.accounts';   // device copy of accounts that signed in here
   const SESSION_KEY = 'novacare.session';
   const GUEST_ID = 'guest';                 // device-only account used by "Continue as guest"
+  const GUEST_NAME = 'Bruno Llobet Chanto';
   const TIMEOUT = 10000;                   // a request slower than this counts as "no signal"
   const cfg = typeof NOVACARE_CONFIG !== 'undefined' ? NOVACARE_CONFIG : {};
   const configured = !!(cfg.SUPABASE_URL && cfg.SUPABASE_ANON_KEY && !/YOUR-/.test(cfg.SUPABASE_URL + cfg.SUPABASE_ANON_KEY));
@@ -92,8 +93,40 @@ const Auth = (() => {
   /** Try the app without an account. Guest data stays on this device and never syncs. */
   function guest() {
     const all = accounts();
-    if (!all[GUEST_ID]) { all[GUEST_ID] = { name: 'Guest', guest: true, uid: null, crew: '', role: 'Guest', seen: new Date().toISOString() }; write(localStorage, USERS_KEY, all); }
+    // the guest profile is Bruno Llobet Chanto (his photo is preset in crew.js)
+    all[GUEST_ID] = { crew: '', ...(all[GUEST_ID] || {}), name: GUEST_NAME, guest: true, uid: null, role: 'Flight Engineer', seen: new Date().toISOString() };
+    write(localStorage, USERS_KEY, all);
     startSession(GUEST_ID, true, false);
+  }
+
+  const TAKEN = 'That email already has an account. Sign in with it — or use “Forgot password?” if you don’t remember the password.';
+
+  /* ---------- password recovery ----------
+     1) the person asks for a link; 2) the link opens NovaCare with a recovery session;
+     3) they choose a new password here. Needs a connection and the site URL allowed in Supabase. */
+  async function requestReset(email) {
+    email = norm(email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter the email of your account.');
+    if (!sb) throw new Error('Password recovery needs the NOVACARE database. In local mode, create a new account.');
+    let res;
+    try { res = await withTimeout(sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); }
+    catch (e) { throw new Error(isNetErr(e) ? 'No connection — try again when the link is back.' : (e.message || 'Could not send the email.')); }
+    if (res.error) throw new Error(/rate|limit|seconds/i.test(res.error.message) ? 'Too many emails sent. Wait a minute and try again.' : res.error.message);
+    return true;
+  }
+  let recovering = /type=recovery/.test(location.hash) || /type=recovery/.test(location.search);
+  const recoveryListeners = [];
+  if (sb) sb.auth.onAuthStateChange((event) => { if (event === 'PASSWORD_RECOVERY') { recovering = true; recoveryListeners.forEach((f) => f()); } });
+  async function setNewPassword(password, confirm) {
+    if (!password || password.length < 6) throw new Error('Password must be at least 6 characters.');
+    if (password !== confirm) throw new Error('Passwords do not match.');
+    const { data: s } = await withTimeout(sb.auth.getSession(), 8000);
+    if (!s || !s.session) throw new Error('This reset link has expired. Ask for a new one.');
+    const { error } = await withTimeout(sb.auth.updateUser({ password }));
+    if (error) throw new Error(error.message);
+    recovering = false;
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+    return login({ email: s.session.user.email, password, remember: true }); // also refreshes the device copy
   }
 
   async function register({ name, email, password, confirm, role }) {
@@ -115,10 +148,10 @@ const Auth = (() => {
     const { data, error } = res;
     if (error) {
       if (isNetErr(error)) throw new Error('Creating an account needs a connection to the NOVACARE database. Try again when the link is back.');
-      if (/registered|exists/i.test(error.message)) throw new Error('That email is already registered. Sign in instead.');
+      if (/registered|exists/i.test(error.message)) throw new Error(TAKEN);
       throw new Error(error.message);
     }
-    if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length) throw new Error('That email is already registered. Sign in instead.');
+    if (data.user && Array.isArray(data.user.identities) && !data.user.identities.length) throw new Error(TAKEN);
     if (!data.session) return { ok: false, confirm: true }; // project requires email confirmation
     await remember(email, password, name, data.user.id, { crew, role }); startSession(email, true, false);
     return { ok: true };
@@ -200,6 +233,7 @@ const Auth = (() => {
 
   return {
     user: () => current, updateProfile, account, clearDirty, restore, register, login, logout, reconnect, cloudSession, isNetErr, guest,
+    requestReset, setNewPassword, recovering: () => recovering, onRecovery: (f) => recoveryListeners.push(f),
     // cloud(): this session syncs with the database. Guests never do (their data stays on the device).
     client: () => sb, cloud: () => !!sb && !(current && current.guest), configured: () => !!sb,
     hasUsers: () => Object.keys(accounts()).some((k) => k !== GUEST_ID),
@@ -265,6 +299,7 @@ const Sync = (() => {
 
   /* crew sharing: my summary up, crewmates and emergency alerts down.
      Kept separate so a project without the crew tables still syncs mission data. */
+  let profileChecked = false; // once per app start
   async function crewSync(sb, uid) {
     const u = Auth.user(); const acc = Auth.account() || {};
     // membership first (the database only accepts alerts from members), then alerts on their own,
@@ -272,9 +307,13 @@ const Sync = (() => {
     try { await membershipSync(sb, uid, u); } catch (e) { if (Auth.isNetErr(e)) throw e; console.warn('NOVACARE membership sync:', e.message || e); }
     await alertSync(sb, uid, u);
     try {
-      if (acc.profileDirty) {
-        const r = await sb.from('profiles').update({ crew_code: u.crew || null, name: u.name }).eq('id', uid);
+      if (acc.profileDirty || !profileChecked) {
+        // recreate the profile row if someone deleted it in the dashboard; fall back to a plain update
+        // when the database does not allow inserting it yet (run supabase/repair_accounts.sql)
+        let r = await sb.from('profiles').upsert({ id: uid, name: u.name, email: u.id, crew_code: u.crew || null, role: u.role }, { onConflict: 'id' });
+        if (r.error) r = await sb.from('profiles').update({ crew_code: u.crew || null, name: u.name }).eq('id', uid);
         if (r.error) throw r.error;
+        profileChecked = true;
         try { await sb.auth.updateUser({ data: { crew: u.crew, role: u.role, name: u.name } }); } catch (e) { /* metadata is a convenience copy */ }
         Auth.clearDirty();
       }

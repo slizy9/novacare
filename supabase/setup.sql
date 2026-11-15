@@ -22,6 +22,8 @@ update public.profiles p set role = coalesce(nullif(u.raw_user_meta_data ->> 'ro
 alter table public.profiles enable row level security;
 drop policy if exists "read own profile" on public.profiles;
 create policy "read own profile" on public.profiles for select using (auth.uid() = id);
+drop policy if exists "insert own profile" on public.profiles;
+create policy "insert own profile" on public.profiles for insert with check (auth.uid() = id);
 drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 

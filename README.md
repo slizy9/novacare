@@ -26,7 +26,7 @@ Live at https://novacare.earth (GitHub Pages).
 - **Mission** — *Mission status* (mission day, crew readiness, roster, 7-day log, report export) and *Missions* (your missions, create, join with a code, and **All missions** — every mission people have created, with a Join button).
 - **Analysis** — a verdict per astronaut with reasons, crew-wide patterns, a readiness comparison chart and the full indicator matrix.
 
-People only appear in the missions they created or joined. A **simulated demo crew** of three synthetic astronauts (with predefined medical profiles) can be switched on or off in Mission settings.
+People only appear in the missions they created or joined, and the crew is made only of real registered people. Forgot your password? **Forgot password?** on the sign-in screen emails a reset link (in Supabase, Authentication → URL Configuration must list the site URL). Each person can add a profile photo (Settings, or tap the photo in My health).
 
 ## How Questions answers (and why it cannot invent a dose)
 
@@ -38,7 +38,7 @@ NovaCare does not use a "trained" container. Three separate layers, all running 
 
 If nothing in the knowledge base matches, NovaCare answers **"No onboard protocol for this question — escalate"** instead of guessing.
 
-**Demo:** ask "¿Le doy amoxicilina a Mei?" (Mei Tanaka, simulated crew, is allergic to penicillin). The rules engine blocks it with `R-ALG-01` and its source, and says no language model was involved.
+**Demo:** add penicillin to your allergies in the medical profile, then ask "Can I take amoxicillin?". The rules engine blocks it with `R-ALG-01` and its source, and says no language model was involved.
 
 ### Run everything on the terminal (docker-compose)
 

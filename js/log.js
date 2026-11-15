@@ -9,7 +9,7 @@ const LOG_KINDS = { all: 'All', health: 'Health', alert: 'Alerts', supply: 'Inve
 const MissionLog = (() => {
   // the moment a mission day started, for entries that only know their day
   const dayStart = (md) => { const s = state.startDate ? new Date(state.startDate + 'T00:00') : null; if (!s) return null; s.setDate(s.getDate() + md - 1); return s.toISOString(); };
-  const notes = () => (Array.isArray(state.log) ? state.log : []);
+  const notes = () => (Array.isArray(state.log) ? state.log.filter((n) => n.at >= LOG_EPOCH) : []);
 
   function entries() {
     if (!state || !state.days) return [];
@@ -38,7 +38,7 @@ const MissionLog = (() => {
       out.push({ at: i.at, md: i.md, kind: 'supply', who: i.by || '', text: `${i.name}: ${i.qty} ${i.unit}${Inventory.level(i) === 3 ? ' — OUT' : Inventory.level(i) === 1 ? ' — low' : ''}`, level: Inventory.level(i) >= 3 ? 2 : Inventory.level(i) });
     });
     notes().forEach((n) => out.push({ at: n.at, md: n.md, kind: 'note', who: n.by, text: n.text, level: 0 }));
-    return out.filter((e) => e.at).sort((a, b) => a.at.localeCompare(b.at)).slice(-300);
+    return out.filter((e) => e.at && e.at >= LOG_EPOCH).sort((a, b) => a.at.localeCompare(b.at)).slice(-300);
   }
   function add(text) {
     text = String(text || '').trim().slice(0, 300); if (!text) return null;
