@@ -1661,3 +1661,93 @@ body.signed-out #sos-fab, body.alarm #sos-fab { display: none; }
 .kv-v { grid-row: span 2; font-size: 17px; font-weight: 650; color: var(--ink); white-space: nowrap; } .kv-v small { font-size: 11.5px; color: var(--muted); font-weight: 500; }
 .kv-s { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c); font-weight: 600; }
 .kv-ic { grid-column: 1; grid-row: 1 / 3; } .kv-l { grid-column: 2; grid-row: 1; } .kv-s { grid-column: 2; grid-row: 2; } .kv-v { grid-column: 3; grid-row: 1 / 3; }
+
+/* =====================================================================================
+   Phones and tablets
+   ===================================================================================== */
+/* sign-in card: nothing spills out of the card on narrow screens */
+.auth-card { grid-template-columns: minmax(0, 1fr); }
+.auth-card > *, .auth-card .fields, .auth-card .field, .auth-card .inp, .auth-card form { min-width: 0; max-width: 100%; }
+@media (max-width: 560px) { .auth-card { padding: 22px 18px; border-radius: 22px; } .auth-photo { max-height: 150px; overflow: hidden; } }
+
+/* messages: a short bar that never covers buttons */
+#toast { border-radius: 14px; text-align: left; line-height: 1.35; width: max-content; }
+@media (max-width: 1023px) { #toast { top: calc(env(safe-area-inset-top) + 10px); bottom: auto; transform: translate(-50%, -12px); font-size: 13.5px; padding: 10px 14px; width: calc(100vw - 24px); max-width: 520px; } #toast.on { transform: translate(-50%, 0); } }
+
+/* the floating Help button steps aside while a window is open (each window has its own way out) */
+body.lock #sos-fab { display: none; }
+.help-mini { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: var(--sos); color: #fff; font-size: 13px; font-weight: 700; border: 0; cursor: pointer; flex: none; }
+.help-mini svg { width: 15px; height: 15px; }
+.sheet > header { align-items: center; }
+
+/* emergency protocol: steps first, the rest folded, actions always in reach */
+.emg-bar { position: sticky; bottom: 0; display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); }
+.emg-bar .btn { flex: 1; min-height: 52px; justify-content: center; }
+.emg-bar .btn.ghost { flex: 0 0 auto; }
+.emg-fold { border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; margin-top: 10px; background: var(--surface); }
+.emg-fold > summary { display: flex; align-items: center; gap: 8px; padding: 12px 0; font-weight: 650; cursor: pointer; list-style: none; }
+.emg-fold > summary::-webkit-details-marker { display: none; }
+.emg-fold > summary::after { content: '+'; margin-left: auto; font-weight: 700; color: var(--muted); }
+.emg-fold[open] > summary::after { content: '−'; }
+.emg-fold > summary svg { width: 16px; height: 16px; color: var(--sos-ink); }
+.emg-fold[open] { padding-bottom: 12px; }
+.emg-fold > section > h3:first-child { display: none; }
+.emg-alg-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; background: var(--sos-soft); font-size: 14px; }
+.emg-alg-line svg { width: 16px; height: 16px; color: var(--sos-ink); }
+.emg-side > .emg-fold { margin-top: 0; }
+@media (max-width: 899px) {
+  .emg .sheet-b { grid-template-columns: minmax(0, 1fr) !important; }
+  .emg > header p { display: none; }
+  .emg > header h2 { font-size: 20px; }
+  .emg-pick { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
+  .emg-pick button { min-height: 76px; padding: 10px; font-size: 13.5px; flex-direction: column; align-items: flex-start; text-align: left; }
+}
+@media (max-width: 380px) { .emg-pick { grid-template-columns: minmax(0, 1fr) !important; } .emg-pick button { min-height: 56px; flex-direction: row; align-items: center; } }
+
+/* sheets fill the screen on phones, with the actions at the bottom */
+@media (max-width: 640px) {
+  #modal { padding: 0; place-items: end stretch; }
+  .sheet, .sheet.narrow { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; border: 0; }
+  .sheet > header { padding: calc(14px + env(safe-area-inset-top)) 16px 12px; }
+  .sheet-b { padding: 14px 16px 18px; }
+  .sheet > footer { padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); }
+}
+
+/* ---------- improvement coach ---------- */
+.coach .coach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.coach .coach-list > li { display: grid; gap: 8px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); }
+.ch-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; } .ch-h b { font-size: 16px; }
+.ch-trend { font-size: 12.5px; font-weight: 650; } .ch-trend.up { color: var(--ok); } .ch-trend.down { color: var(--alert); } .ch-trend.flat { color: var(--muted); }
+.ch-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.ch-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #8fd3ff, #6fe0a6); }
+.ch-n, .ch-tip { margin: 0; font-size: 13.5px; color: var(--muted); } .ch-n b, .ch-tip b { color: var(--ink); }
+.ch-act { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .ch-act small { color: var(--muted); font-size: 12px; flex: 1 1 140px; }
+.coach-wins { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--ok) 14%, transparent); font-size: 13.5px; }
+.coach-wins svg { width: 16px; height: 16px; color: var(--ok); flex: none; }
+.done-win { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--ok) 12%, var(--surface)); color: var(--ink); font-size: 14px; }
+.done-win svg { width: 16px; height: 16px; color: var(--ok); flex: none; }
+
+/* ---------- check-in: labelled blood pressure ---------- */
+.qp { display: grid; gap: 4px; min-width: 0; } .qp small { font-size: 11.5px; color: var(--muted); }
+.qpair { align-items: end; }
+
+/* ---------- phones: shorter pages, the important part first ---------- */
+@media (max-width: 760px) {
+  .lobby-hero .hero-live { display: none; }               /* heart rate is in "You today" right below */
+  .lobby-hero { padding: 22px 18px 20px; }
+  .lobby-hero .hero-title { font-size: 30px; margin: 4px 0 10px; }
+  .crew-card { gap: 10px; padding: 16px; }
+  .crew-card .crew-score svg, .crew-card .crew-vitals { display: none; }
+  .crew-card .crew-score { padding: 0; }
+  .crew-med .cm-row:not(:first-child) { display: none; }     /* allergies stay; the rest is in "View details" */
+  .coach .coach-list > li { padding: 12px; }
+  .page-h { gap: 10px; } .page-h h1 { font-size: 28px; }
+  .an-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+/* tablets: two columns where there is room */
+@media (min-width: 761px) and (max-width: 1023px) {
+  .crew-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lobby-grid { grid-template-columns: minmax(0, 1fr); }
+  .coach .coach-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) { .guide .gd p { display: none; } .guide .gd li { align-items: center; } .guide .gd li > .btn { grid-column: auto; } .guide .gd li { grid-template-columns: auto 1fr auto; } }

@@ -87,7 +87,7 @@ function viewCrew() {
       ${medHistoryHtml(m, false)}
       <p class="crew-meta">${m.checkedInToday ? `${icon('check')}Checked in today` : `${icon('clock')}Check-in pending`}${m.cached ? ` · ${timeAgo(m.updatedAt)}` : ''}${m.sim ? ' · <span class="tag sm" title="Synthetic demo astronaut">Simulated</span>' : ''}</p>
       <footer><button class="btn ghost sm" data-act="mate" data-id="${esc(m.id)}">View details</button>
-        <button class="btn sos sm" data-act="emergency" data-id="${esc(m.id)}">${icon('siren')}Emergency</button></footer>
+        ${u.guest && !m.sim ? `<button class="btn ghost sm" data-act="authtab" data-v="login" disabled title="Sign in to alert real crewmates">${icon('siren')}Sign in to alert</button>` : `<button class="btn sos sm" data-act="emergency" data-id="${esc(m.id)}">${icon('siren')}Emergency</button>`}</footer>
     </article>`;
   }).join('')}</div>
   <p class="muted small foot-note">${icon('shield')}Crewmates see the same summary of you. Raw readings stay private.</p>`;
@@ -118,22 +118,26 @@ function mateHtml(id) {
 function emergencyHtml(md) {
   const all = Crew.members(); const i = all.findIndex((m) => m.id === md.id); const m = all[i] || { name: md.name || 'Crew member', latest: {}, advisories: [], systems: {}, med: null, id: md.id };
   const env = Engine.env();
-  if (md.step === 'pick') {
+  if (md.step === 'pick') { // one tap first: the situations; describing it in words is the second option
     return `<div class="sheet narrow emg" role="dialog" aria-modal="true" aria-label="Emergency">
-      <header><span class="emg-ic">${icon('siren')}</span><div class="grow"><h2>Emergency for ${esc(m.name)}</h2><p class="muted small">Describe what is happening, or choose it below. The crew is alerted and NovaCare tells you what to do with what is on board.</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+      <header><span class="emg-ic">${icon('siren')}</span><div class="grow"><h2>Emergency · ${esc(firstName(m) === 'You' ? 'you' : m.name)}</h2><p class="muted small">Tap what is happening. Your crew is alerted.</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
       <div class="sheet-b one">
+        ${md.noMatch ? '<p class="auth-err">I could not tell which situation this is — tap the closest one.</p>' : ''}
+        <div class="emg-pick">${EMERGENCIES.map((e) => `<button data-act="emgtype" data-v="${e.id}">${icon(e.icon)}<span>${e.name}</span></button>`).join('')}</div>
+        <p class="emg-or"><span>or describe it</span></p>
         <form id="emg-describe" class="emg-desc">
-          <label for="emg-text">Describe the situation</label>
-          <div class="ask-row"><textarea id="emg-text" name="text" class="text" rows="2" maxlength="400" placeholder="e.g. She ate something with peanuts, her lips are swelling and she is wheezing">${esc(md.text || '')}</textarea>${micBtn('emg-text')}</div>
-          ${md.noMatch ? '<p class="auth-err">I could not tell which situation this is — choose the closest one below.</p>' : ''}
+          <label for="emg-text" class="vh">Describe the situation</label>
+          <div class="ask-row"><textarea id="emg-text" name="text" class="text" rows="2" maxlength="400" placeholder="e.g. lips swelling and wheezing after eating">${esc(md.text || '')}</textarea>${micBtn('emg-text')}</div>
           <button class="btn sos" type="submit">${icon('siren')}Get instructions</button>
         </form>
-        <p class="emg-or"><span>or choose the situation</span></p>
-        <div class="emg-pick">${EMERGENCIES.map((e) => `<button data-act="emgtype" data-v="${e.id}">${icon(e.icon)}<span>${e.name}</span></button>`).join('')}</div>
-      <p class="muted small">If you are unsure, choose the closest match — you can switch protocol later. In a life-threatening situation, act first and log after.</p></div></div>`;
+        <p class="muted small">Unsure? Tap the closest match — you can switch later. In a life-threatening situation, act first and log after.</p></div></div>`;
   }
   const e = EMG[md.em] || EMERGENCIES[0]; const alert = Crew.alerts().find((a) => a.id === md.alertId);
-  const sent = !alert ? '' : !Auth.cloud() ? 'Crew on this device alerted' : alert.pending ? 'Saved — the crew is alerted as soon as the link is back' : 'Crew alerted';
+  const reach = typeof alertReach === 'function' ? alertReach() : 'cloud';
+  const sent = !alert ? '' : reach === 'guest' || reach === 'local' ? 'Only on this device' : reach === 'nomission' ? 'Not on a mission — nobody alerted'
+    : alert.pending ? (navigator.onLine === false ? 'Waiting for link' : 'Sending…') : 'Crew alerted ✓';
+  const wide = window.innerWidth >= 900; // on phones and tablets the extras start folded so the steps come first
+  const al = m.med ? Medical.allergyNames(m.med) : [];
   const rel = e.ind.map((id) => ({ id, l: m.latest[id] || {} }));
   const hints = [];
   rel.forEach(({ id, l }) => { if (l.v != null && l.level >= 2) hints.push(`${IND[id].short} was ${Engine.fmt(IND[id], l.v)} ${IND[id].unit} on MD ${l.md} — ${levelText(l.level).toLowerCase()}.`); });
@@ -144,25 +148,23 @@ function emergencyHtml(md) {
     <div class="sheet-b">
       <section>
         ${md.text ? `<p class="emg-said">${icon('chat')}<span>“${esc(md.text)}”</span>${(md.others || []).length ? ` <span class="muted small">Also possible:</span> ${md.others.map((o) => `<button class="chip-s" data-act="emgtype" data-v="${o}">${esc(EMG[o].name)}</button>`).join('')}` : ''}</p>` : ''}
+        <p class="emg-alg-line">${icon('care')}<b>Allergies:</b> ${!m.med ? '<span class="muted">unknown — ask before giving any medicine</span>' : al.length ? al.map((a) => `<span class="alg-chip">${esc(a)}</span>`).join(' ') : 'none known'}</p>
         <h3>Do this now</h3>
         <ol class="steps">${e.steps.map((s, k) => `<li><button data-act="emgstep" data-k="${k}" aria-pressed="${!!md.done[k]}" class="${md.done[k] ? 'done' : ''}"><span class="n num">${md.done[k] ? icon('check') : k + 1}</span><span>${esc(s)}</span></button></li>`).join('')}</ol>
         <p class="esc"><b>Ground support:</b> ${env.name} — ${env.commNote}</p>
-        ${emgSuppliesHtml(e.id, m)}
-        ${emgAskHtml(md)}
+        <details class="emg-fold" ${wide ? 'open' : ''}><summary>${icon('box')}What to use from the ship</summary>${emgSuppliesHtml(e.id, m)}</details>
+        <details class="emg-fold" ${wide ? 'open' : ''}><summary>${icon('chat')}Ask what to do</summary>${emgAskHtml(md)}</details>
       </section>
       <aside class="emg-side">
-        <h3>What NOVACARE knows about ${esc(firstName(m))}</h3>
-        ${emgProfileHtml(m)}
-        <dl class="crew-vitals col">${rel.map(({ id }) => vitalCell(m, id, IND[id].short)).join('')}</dl>
-        ${hints.length ? `<ul class="hints">${hints.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : '<p class="muted small">No earlier warning signs in the latest readings.</p>'}
-        <p class="muted small">Last readings may be hours old. Measure again now and trust what you see over stored data.</p>
-        <div class="btnrow col">
-          <button class="btn ghost" data-act="emgswitch">Switch protocol</button>
-          <button class="btn primary" data-act="emgresolve">${icon('check')}Mark resolved</button>
-        </div>
+        <details class="emg-fold" ${wide ? 'open' : ''}><summary>${icon('user')}What NovaCare knows about ${esc(firstName(m))}</summary>
+          ${emgProfileHtml(m)}
+          <dl class="crew-vitals col">${rel.map(({ id }) => vitalCell(m, id, IND[id].short)).join('')}</dl>
+          ${hints.length ? `<ul class="hints">${hints.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : '<p class="muted small">No earlier warning signs in the latest readings.</p>'}
+          <p class="muted small">Last readings may be hours old. Measure again now and trust what you see over stored data.</p></details>
+        <p class="emg-foot">Supports, never replaces, your mission's medical checklists and the Crew Medical Officer. Prototype — not a medical device.</p>
       </aside>
     </div>
-    <p class="emg-foot">Supports, never replaces, your mission's medical checklists and the Crew Medical Officer. Prototype — not a medical device.</p>
+    <footer class="emg-bar"><button class="btn ghost lg" data-act="emgswitch">Switch</button><button class="btn primary lg save-big" data-act="emgresolve">${icon('check')}Mark resolved</button></footer>
   </div>`;
 }
 
@@ -309,23 +311,28 @@ function viewAnalysis() {
   const seen = new Set();
   const groups = SYSTEMS.map((s) => ({ s, ids: s.indicators.filter((id) => !seen.has(id) && seen.add(id)) })).filter((g) => g.ids.length);
   const ahead = crew.filter((m) => !m.me && (m.predict || []).length);
+  // most important first; long lists show their top items and fold the rest
+  const shown = ui.allVerd ? ranked : ranked.slice(0, 4);
+  const crewRisks = ahead.flatMap((m) => m.predict.map((p) => ({ m, p }))).sort((a, b) => b.p.level - a.p.level);
   return pageHead('Insights', 'Who is doing well and who needs help — most urgent first.') +
-  predictCard(Predict.all()) +
-  (ahead.length ? `<section class="card"><div class="card-h"><h2>${icon('chart')}Risks ahead for the crew</h2><span class="muted small">If current trends continue</span></div>
-    <ul class="findings">${ahead.flatMap((m) => m.predict.map((p) => `<li class="${lc(p.level)}">${mark(p.level)}<div><b>${esc(firstName(m))}: ${esc(p.title)}</b><p>${esc(p.text)}</p></div></li>`)).join('')}</ul></section>` : '') +
   `<div class="an-grid">
-    <section class="card"><div class="card-h"><h2>How each astronaut is doing</h2></div>
-      <ul class="verdicts">${ranked.map(({ m, i, v }) => `<li class="${lc(v.level)}">
+    <section class="card"><div class="card-h"><h2>How each astronaut is doing</h2><span class="muted small">${ranked.length} on this mission</span></div>
+      <ul class="verdicts">${shown.map(({ m, i, v }) => `<li class="${lc(v.level)}">
         <div class="vd-h">${avatar(m, i)}<div class="grow"><b>${m.me ? 'You' : esc(m.name)}</b><small>${esc(m.role || '')}</small></div>${verdictPill(v)}</div>
         <ul class="reasons">${v.reasons.slice(0, 3).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
         ${m.me ? '<button class="btn ghost sm" data-act="view" data-v="overview">Open my status</button>' : `<button class="btn ghost sm" data-act="mate" data-id="${esc(m.id)}">View details</button>`}
       </li>`).join('')}</ul>
+      ${ranked.length > 4 ? `<button class="btn quiet sm more" data-act="allverd">${ui.allVerd ? 'Show fewer' : `Show all ${ranked.length}`}</button>` : ''}
     </section>
     <section class="card"><div class="card-h"><h2>Crew-wide patterns</h2><span class="muted small">${find.length ? `${find.length} found` : ''}</span></div>
       ${find.length ? `<ul class="findings">${(ui.allFind ? find : find.slice(0, 3)).map((f) => `<li class="${lc(f.level)}">${mark(f.level)}<div><b>${esc(f.title)}</b><p>${esc(f.detail)}</p><p class="act"><span>What to do</span>${esc(f.act)}</p></div></li>`).join('')}</ul>${find.length > 3 ? `<button class="btn quiet sm more" data-act="allfind">${ui.allFind ? 'Show fewer' : `Show ${find.length - 3} more`}</button>` : ''}`
         : `<p class="empty">No crew-wide pattern found. Individual findings are listed on the left.</p>`}
     </section>
   </div>
+  ${predictCard(Predict.all(), { limit: ui.allPred ? 0 : 2, toggle: true })}
+  ${crewRisks.length ? `<section class="card"><div class="card-h"><h2>${icon('chart')}Risks ahead for the crew</h2><span class="muted small">If current trends continue</span></div>
+    <ul class="findings">${(ui.allRisk ? crewRisks : crewRisks.slice(0, 3)).map(({ m, p }) => `<li class="${lc(p.level)}">${mark(p.level)}<div><b>${esc(firstName(m))}: ${esc(p.title)}</b><p>${esc(p.text)}</p></div></li>`).join('')}</ul>
+    ${crewRisks.length > 3 ? `<button class="btn quiet sm more" data-act="allrisk">${ui.allRisk ? 'Show fewer' : `Show ${crewRisks.length - 3} more`}</button>` : ''}</section>` : ''}
   <section class="card"><div class="card-h"><h2>Readiness by crew member</h2><span class="muted small">Last 14 days</span></div>${crewChart(crew, 14, false)}</section>
   <details class="card disclose"><summary><h2>Full indicator matrix</h2><span class="muted small">Latest value of every indicator, by crew member</span>${icon('next')}</summary>
     <div class="tbl-wrap"><table class="heat"><thead><tr><th rowspan="2">Crew member</th>${groups.map((g) => `<th colspan="${g.ids.length}" class="grp">${g.s.name}</th>`).join('')}</tr>

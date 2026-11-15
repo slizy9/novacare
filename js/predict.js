@@ -105,7 +105,7 @@ function predictCard(list, opts = {}) {
   const risky = list.filter((p) => p.level > 0).length;
   return `<section class="card predict${opts.space ? ' space' : ''}" aria-label="Predicted risks">
     <div class="card-h"><div><h2>${icon('chart')}What’s ahead</h2><p class="muted small">${risky ? `${risky} thing${risky > 1 ? 's' : ''} to act on` : 'Nothing to worry about'}</p></div>
-      ${opts.more ? `<button class="btn ghost sm" data-act="view" data-v="analysis">See all${icon('next')}</button>` : ''}</div>
+      ${opts.more ? `<button class="btn ghost sm" data-act="view" data-v="analysis">See all${icon('next')}</button>` : opts.toggle && list.length > 2 ? `<button class="btn ghost sm" data-act="allpred">${ui.allPred ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}</div>
     <ul class="pred">${items.map((p) => `<li class="${lc(p.level)}">
       <div class="pred-h"><span class="pill ${lc(p.level)}">${p.level ? LEVELS[p.level].sym + ' ' + (p.level >= 2 ? 'Act now' : 'Watch') : '● OK'}</span><b>${esc(p.title)}</b></div>
       <div class="pred-n"><span><small>Now</small><b class="num">${esc(p.now)}</b></span><span class="pred-arrow">${icon('next')}</span><span><small>${p.key === 'p-dose' || p.key === 'p-bone' ? 'Mission end' : p.when != null ? `In ${Math.max(1, Math.round(p.when))} days` : 'Ahead'}</small><b class="num">${esc(p.future)}</b></span></div>

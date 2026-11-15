@@ -18,13 +18,10 @@ const Reminders = (() => {
     if (Status.due()) out.push({ id: 'status', icon: 'checks', title: 'How do you feel?', detail: 'One tap', act: 'status', go: 'Answer', p: 1 });
     // vitals + mind are one quick check-in; it is a choice, so "Not today" removes it
     if (!day.checkinAt && !Engine.checkedIn(day) && !day.skipCheckin) out.push({ id: 'checkin', icon: 'plus', title: 'Daily check-in', detail: 'About a minute, all on one screen', act: 'checkin', go: 'Start', p: 2 });
-    TASKS.forEach((t) => {
-      if (t.id === 'vitals' || t.id === 'mind') return;
-      if (Engine.taskDone(t, day) || hour() < (REMIND_AT[t.id] ?? 0)) return;
-      const detail = typeof t.detail === 'function' ? t.detail(env) : t.detail;
-      out.push(t.ids ? { id: 'task:' + t.id, icon: 'pulse', title: t.label, detail, act: 'remlog', v: t.id, go: 'Log now', p: t.id === 'vitals' || t.id === 'mind' ? 2 : 3 }
-        : { id: 'task:' + t.id, icon: 'calendar', title: t.label, detail, act: 'remdone', v: t.id, go: 'Done', p: 4 });
-    });
+    // only what matters now; the rest of the daily routine lives in My health → Today, not in the bell.
+    // Exercise is the one routine item worth a nudge late in the day, because missing it costs bone and muscle.
+    const ex = TASKS.find((t) => t.id === 'ex');
+    if (ex && !Engine.taskDone(ex, day) && hour() >= 17) out.push({ id: 'task:ex', icon: 'pulse', title: ex.label, detail: typeof ex.detail === 'function' ? ex.detail(env) : ex.detail, act: 'remlog', v: 'ex', go: 'Log', p: 3 });
     const prof = Medical.mine();
     if (Medical.empty(prof)) out.push({ id: 'profile', icon: 'care', title: 'Add your allergies', detail: 'One minute — makes medicine checks and emergencies safe', act: 'sub', v: 'medical', go: 'Open', p: 5 });
     return out.filter((r) => !(snooze[r.id] && Date.now() < snooze[r.id])).sort((a, b) => a.p - b.p);

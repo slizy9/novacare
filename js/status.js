@@ -110,7 +110,7 @@ function statusHtml(m) {
   const on = (x) => (q.type === 'many' ? has(v, x) : v === x);
   const feel = q.id === 'feel';
   return `<div class="sheet narrow status" role="dialog" aria-modal="true" aria-label="${esc(q.q)}">
-    <header><div><p class="kicker">Quick status</p><h2>${esc(q.q)}</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <header><div class="grow"><p class="kicker">Quick status</p><h2>${esc(q.q)}</h2></div>${helpMini()}<button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
       <div class="st-opts ${q.type} ${feel ? 'faces' : ''}">${q.opts.map(([val, label]) => `<button class="${on(val) ? 'on' : ''}" data-act="stans" data-v="${val}" aria-pressed="${on(val)}">${feel ? `<span class="st-face">${['', '😣', '🙁', '😐', '🙂', '😄'][val]}</span>` : ''}${esc(label)}</button>`).join('')}</div>
       ${feel ? '<p class="muted small center">One tap. If you feel fine, that’s it.</p>' : q.type === 'many' ? '<p class="muted small">Tap all that apply.</p>' : ''}

@@ -146,7 +146,7 @@ function renderTop() {
       <button class="chip hide-s" data-act="settings" title="Environment and mission settings">${icon('orbit')}${env.short}</button>
       ${(() => { const n = Reminders.list().length; return `<button class="chip bell ${n ? 'has' : ''}" data-act="reminders" title="Reminders" aria-label="Reminders${n ? `, ${n} pending` : ''}">${icon('bell')}${n ? `<em class="num">${n}</em>` : ''}</button>`; })()}
       ${syncChip()}
-      <button class="chip icon-only" data-act="theme" title="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode" aria-label="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
+      <button class="chip icon-only hide-s" data-act="theme" title="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode" aria-label="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
       ${Missions.has() ? `<div class="md" title="Mission day — changes at midnight">MD <b class="num">${state.md}</b></div>` : ''}
       <div class="user-chip" title="${u.guest ? 'Guest — data stays on this device' : `Signed in as ${esc(u.id)}`}"><span class="avatar ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : esc(initials(state.name || u.name))}</span><span class="uname">${esc(state.name || u.name)}</span><button data-act="logout" title="Sign out" aria-label="Sign out">${icon('logout')}</button></div>
     </div>`;
@@ -177,8 +177,7 @@ function viewLobby() {
   const day = Engine.today(); const done = checkinDone(day);
   const cta = locked
     ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
-    : `<button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>
-       <button class="btn sos lg" data-act="help">${icon('siren')}Ask crew for help</button>`;
+    : `<button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>`; // Help is the red button on every page
   // the check-in is offered, never forced: Start, or Not today
   const choice = locked ? '' : done
     ? `<div class="ci-choice ok">${icon('check')}<div><b>Check-in done</b><small>${Status.due() ? 'Quick status due' : 'Nothing else to fill in right now'}</small></div>${Status.due() ? `<button class="btn primary sm" data-act="status">How do you feel?</button>` : `<button class="btn quiet sm" data-act="checkin">Edit</button>`}</div>`
@@ -245,7 +244,8 @@ function viewLobby() {
         <p class="muted small">Use every section on your own, or join a mission to share your status with a crew on this device.</p>
         <div class="lm-acts"><button class="btn primary sm" data-act="missiontab" data-v="missions">${icon('rocket')}Browse missions</button></div></section>`;
   }
-  return hero + guideHtml() + `<div class="lobby-grid">${today}${mission}</div>` + predictCard(Predict.all(), { limit: 2, more: true, space: true });
+  // most important first: you today and your plan, then the crew, then the first-visit guide and what is ahead
+  return hero + coachCard({ space: true, compact: true }) + `<div class="lobby-grid">${today}${mission}</div>` + guideHtml() + predictCard(Predict.all(), { limit: 2, more: true, space: true });
 }
 
 /* First visit: the three things to know, in plain words. Hidden for good with "Got it". */
@@ -355,7 +355,7 @@ function viewPersonal() {
   const due = Engine.dueList().length;
   const body = { overview: viewStatus, today: viewRoutine, vitals: viewVitals, hazards: viewHazards, medical: viewMedical }[ui.sub]();
   return pageHead(`${state.name ? esc(state.name.split(' ')[0]) + '’s' : 'Your'} health`, `Mission day ${state.md} · ${due ? `${due} measurement${due > 1 ? 's' : ''} due` : 'everything is logged for today'}`,
-    `<button class="btn sos" data-act="help">${icon('siren')}Ask crew for help</button>${ui.sub === 'overview' ? '' : `<button class="btn primary" data-act="checkin">${icon('plus')}Start check-in</button>`}`) +
+    ui.sub === 'overview' ? '' : `<button class="btn primary" data-act="checkin">${icon('plus')}Start check-in</button>`) +
     `<nav class="subnav" aria-label="Personal sections"><span class="ind" aria-hidden="true"></span>${PERSONAL.map((p) => `<button class="${ui.sub === p.v ? 'on' : ''}" data-act="sub" data-v="${p.v}" ${ui.sub === p.v ? 'aria-current="page"' : ''}>${icon(p.icon)}${p.label}</button>`).join('')}</nav>` + body;
 }
 
@@ -415,7 +415,7 @@ function viewStatus() {
     : need ? `${need} ${need > 1 ? 'things need' : 'thing needs'} your attention today.`
     : watch ? `You’re on track, with ${watch} small ${watch > 1 ? 'things' : 'thing'} to watch.` : 'You’re on track. Nothing needs action today.';
   const done = checkinDone(Engine.today());
-  return overviewTop() + `<section class="card hero">
+  return overviewTop() + coachCard() + `<section class="card hero">
       <div class="hero-main">
         <h2 class="hero-title">${summary}</h2>
         <div class="hero-cta">${!done
@@ -541,8 +541,8 @@ function readoutHtml(id, v) {
 function measureHtml(m) {
   const ids = m.steps[m.i]; const ind = IND[ids[0]]; const n = m.steps.length;
   return `<div class="sheet narrow measure" role="dialog" aria-modal="true" aria-label="${esc(ASK[ids[0]] || ind.name)}">
-    <header><div><p class="kicker">${m.guided ? 'Daily check-in' : 'Log reading'}${n > 1 ? ` · ${m.i + 1} of ${n}` : ''}</p><h2>${ASK[ids[0]] || ind.name}</h2></div>
-      <button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <header><div class="grow"><p class="kicker">${m.guided ? 'Daily check-in' : 'Log reading'}${n > 1 ? ` · ${m.i + 1} of ${n}` : ''}</p><h2>${ASK[ids[0]] || ind.name}</h2></div>
+      ${helpMini()}<button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     ${n > 1 ? `<div class="meter"><i style="width:${((m.i + 1) / n) * 100}%"></i></div>` : ''}
     <div class="sheet-b one">
       <div class="fields">${ids.map((id) => fieldHtml(id, m.draft)).join('')}</div>
@@ -556,30 +556,33 @@ function measureHtml(m) {
 
 /* ---------- daily check-in on one screen ---------- */
 const MOOD_FACE = ['', '😣', '🙁', '😐', '🙂', '😄'];
+const SHORT_LABEL = { Overwhelmed: 'Extreme', 'Marked change': 'Marked', 'Clear blur': 'Blurry', 'Slight blur': 'Slight' }; // fit five buttons on a phone
+// read by the ship's sensors once a day, not part of each person's check-in
+const SHIP_READINGS = ['rad', 'co2'];
 function quickNum(id, draft) {
   const ind = IND[id]; const v = draft[id]; const last = Engine.status(id);
   return `<div class="stepper qs"><button data-act="step" data-id="${id}" data-d="-1" aria-label="Decrease ${esc(ind.short)}">−</button>
-    <input id="in-${id}" data-in="${id}" type="number" inputmode="decimal" step="${ind.step}" min="${ind.min}" max="${ind.max}" value="${v ?? ''}" placeholder="${Engine.fmt(ind, last.v != null ? last.v : ind.def)}" aria-label="${esc(ind.name)}">
+    <input id="in-${id}" data-in="${id}" type="number" inputmode="decimal" step="${ind.step}" min="${ind.min}" max="${ind.max}" value="${v ?? ''}" placeholder="—" aria-label="${esc(ind.name)}${last.v != null ? `, last ${Engine.fmt(ind, last.v)}` : ''}">
     <span>${ind.unit}</span><button data-act="step" data-id="${id}" data-d="1" aria-label="Increase ${esc(ind.short)}">+</button></div>`;
 }
 function quickField(id, draft) {
   const ind = IND[id]; const v = draft[id];
   if (ind.type === 'scale') {
     return `<div class="qf"><div class="qf-h"><b>${esc(ind.short)}</b><span class="qro" id="ro-${id}">${readoutHtml(id, v)}</span></div>
-      <div class="scale qscale">${ind.scale.map((o) => `<button class="${v === o.v ? 'on' : ''}" data-act="pick" data-id="${id}" data-v="${o.v}" aria-pressed="${v === o.v}">${id === 'mood' ? `<b>${MOOD_FACE[o.v]}</b>` : ''}${esc(o.label)}</button>`).join('')}</div></div>`;
+      <div class="scale qscale">${ind.scale.map((o) => `<button class="${v === o.v ? 'on' : ''}" data-act="pick" data-id="${id}" data-v="${o.v}" aria-pressed="${v === o.v}" aria-label="${esc(ind.short)}: ${esc(o.label)}">${id === 'mood' ? `<b>${MOOD_FACE[o.v]}</b>` : ''}${esc(SHORT_LABEL[o.label] || o.label)}</button>`).join('')}</div></div>`;
   }
   return `<div class="qf"><div class="qf-h"><b>${esc(ind.short)}</b><span class="qro" id="ro-${id}">${readoutHtml(id, v)}</span></div>${quickNum(id, draft)}</div>`;
 }
 function quickHtml(m) {
   const d = m.draft;
   const bp = `<div class="qf"><div class="qf-h"><b>Blood pressure</b><span class="qro" id="ro-sys">${readoutHtml('sys', d.sys)}</span><span class="qro" id="ro-dia" hidden></span></div>
-    <div class="qpair">${quickNum('sys', d)}<i>/</i>${quickNum('dia', d)}</div></div>`;
+    <div class="qpair"><div class="qp"><small>Top (systolic)</small>${quickNum('sys', d)}</div><i>/</i><div class="qp"><small>Bottom (diastolic)</small>${quickNum('dia', d)}</div></div></div>`;
   return `<div class="sheet narrow measure quick" role="dialog" aria-modal="true" aria-label="Daily check-in">
-    <header><div><p class="kicker">Daily check-in · MD ${state.md}</p><h2>How are you today?</h2></div>
-      <button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <header><div class="grow"><p class="kicker">Daily check-in · MD ${state.md}</p><h2>How are you today?</h2></div>
+      ${helpMini()}<button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
       <section class="qsec"><h3>You</h3>${QUICK_FEEL.map((id) => quickField(id, d)).join('')}</section>
-      <section class="qsec"><div class="qsec-h"><h3>Vitals</h3><button class="btn quiet sm" data-act="filllast">${icon('copy')}Same as last time</button></div>
+      <section class="qsec"><div class="qsec-h"><h3>Vitals</h3><button class="btn ghost sm" data-act="filllast">${icon('copy')}Same as last time</button></div>
         ${bp}${['hr', 'spo2', 'temp'].map((id) => quickField(id, d)).join('')}</section>
       ${m.more.length ? `<details class="qsec more" ${m.more.some((id) => d[id] != null) ? 'open' : ''}><summary><h3>More</h3><span class="muted small">${m.more.length} optional · ${m.more.map((id) => IND[id].short).join(', ')}</span></summary>
         ${m.more.map((id) => quickField(id, d)).join('')}</details>` : ''}
@@ -613,6 +616,7 @@ function doneHtml(m) {
     <header><div><h2>Saved</h2><p class="sub">${m.count} reading${m.count === 1 ? '' : 's'} · +${g.todayXp} XP today${g.streak ? ` · ${g.streak}-day streak` : ''}</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
       <div class="done-top">${ring(score)}</div>
+      ${(() => { const f = Coach.feedback(); return f ? `<p class="done-win">${icon('check')}${esc(f)}</p>` : ''; })()}
       ${top ? `<div class="done-next ${lc(top.level)}"><span class="dot"></span><div><b>${esc(top.title)}</b><p>${esc(top.actions[0] || '')}</p></div></div>
         ${adv.length > 1 ? `<p class="muted small center">+${adv.length - 1} more in your health page</p>` : ''}`
         : '<p class="center">Everything is in range. Nice work.</p>'}
@@ -707,6 +711,8 @@ const SYNC_UI = {
 };
 const SYNC_ICON = { local: 'cloudOff', synced: 'cloud', syncing: 'refresh', pending: 'cloud', offline: 'cloudOff', relink: 'cloudOff', error: 'cloudOff' };
 function syncChip() {
+  // a guest is not "offline": say what it is in one word
+  if (Auth.user() && Auth.user().guest) return `<button class="chip sync ln" data-act="syncinfo" title="Guest mode — your data stays on this device" aria-label="Guest mode: your data stays on this device">${icon('user')}<span>Guest</span></button>`;
   const st = Sync.status(); const [c, , label, tip] = SYNC_UI[st] || SYNC_UI.local;
   return `<button class="chip sync ${c} ${st}" data-act="syncinfo" title="${esc(tip)}" aria-label="Sync: ${esc(label)}. ${esc(tip)}">${icon(SYNC_ICON[st] || 'cloud')}<span class="hide-s">${label}</span></button>`;
 }
@@ -886,6 +892,8 @@ function render() {
   if (ui.view === 'lobby') Earth.paint(app); // the Home cards together show the Earth
   renderModal(); renderSos(); renderTakeover();
 }
+/* Inside a window the floating button steps aside, so the window carries its own small Help button. */
+const helpMini = () => `<button class="help-mini" data-act="help" aria-label="Ask your crew for help">${icon('siren')}Help</button>`;
 /* "Ask crew for help" is always one tap away, on every page, above any task. */
 function renderSos() {
   let b = $('#sos-fab');
@@ -936,7 +944,7 @@ const QUICK_FEEL = ['mood', 'stress', 'sleep'];
 const QUICK_VITALS = ['sys', 'dia', 'hr', 'spo2', 'temp'];
 function startCheckin() {
   const day = Engine.today(); const draft = {};
-  const more = INDICATORS.map((i) => i.id).filter((id) => !QUICK_FEEL.includes(id) && !QUICK_VITALS.includes(id) && (Engine.status(id).due || day.vals[id] != null));
+  const more = INDICATORS.map((i) => i.id).filter((id) => !QUICK_FEEL.includes(id) && !QUICK_VITALS.includes(id) && !SHIP_READINGS.includes(id) && (Engine.status(id).due || day.vals[id] != null));
   [...QUICK_FEEL, ...QUICK_VITALS, ...more].forEach((id) => { if (day.vals[id] != null) draft[id] = day.vals[id]; });
   ui.modal = { type: 'quick', draft, more, count: 0 };
   renderModal();
@@ -987,6 +995,10 @@ function tickTimer() {
 const actions = {
   alladv() { ui.allAdv = !ui.allAdv; render(); },
   allfind() { ui.allFind = !ui.allFind; render(); },
+  coachdone(d) { const on = Coach.markDone(d.v); render(); if (on) toast('Nice — logged for today. Small steps add up.'); },
+  allverd() { ui.allVerd = !ui.allVerd; render(); },
+  allpred() { ui.allPred = !ui.allPred; render(); },
+  allrisk() { ui.allRisk = !ui.allRisk; render(); },
   theme() { const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = t; try { localStorage.setItem('novacare.theme', t); } catch (e) { /* ignore */ } renderTop(); },
   sub(d) { if (ui.view === 'personal' && ui.sub === d.v) return; navigate(() => { ui.view = 'personal'; ui.sub = d.v; ui.modal = null; render(); }); },
   mate(d) { ui.modal = { type: 'mate', id: d.id }; renderModal(); },
@@ -1070,6 +1082,7 @@ const actions = {
     catch (e) { toast(e.message); }
   },
   syncinfo() {
+    if (Auth.user().guest) { toast('Guest mode: everything stays on this device. Sign in with an account to share with your crew.'); return; }
     const st = Sync.status();
     if (st === 'relink') { ui.modal = { type: 'reauth' }; renderModal(); return; }
     toast(SYNC_UI[st][3]); if (st !== 'local') Sync.run();
