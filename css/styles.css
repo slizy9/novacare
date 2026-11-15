@@ -1428,3 +1428,18 @@ body { background: var(--bg); }
 .kb-cat.wellbeing { background: var(--accent-soft); color: var(--accent-ink); }
 .kb-cat.ship { background: var(--surface-3); color: var(--muted); }
 .chat .a ol { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+
+/* ---------- reminders ---------- */
+.chip.bell { position: relative; width: 36px; padding: 0; justify-content: center; }
+.chip.bell em { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--sos); color: #fff; font: 700 10.5px/18px var(--sans); font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+.chip.bell.has .ic { color: var(--ink); animation: ring 2.4s ease-in-out 1; transform-origin: 50% 10%; }
+@keyframes ring { 0%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-12deg); } 50% { transform: rotate(0); } }
+.rem-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rem-list li { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.rem-list li b { display: block; font-size: 14.5px; } .rem-list li small { color: var(--muted); font-size: 12.5px; }
+.rem-ic { width: 38px; height: 38px; flex: none; display: grid; place-content: center; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); }
+.rem-ic .ic { width: 19px; height: 19px; }
+.rem-note { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); font-size: 13px; color: var(--muted); }
+.rem-note > .ic { width: 18px; height: 18px; color: var(--sand-ink); flex: none; }
+.rem-note p { flex: 1; }
+@media (max-width: 520px) { .rem-list li { flex-wrap: wrap; } .rem-list li .grow { flex-basis: calc(100% - 52px); } .rem-list li .btn { flex: 1; } }

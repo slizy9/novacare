@@ -144,6 +144,7 @@ function renderTop() {
     <div class="sysline ${on ? 'on' : 'off'}" role="status"><i></i>${on ? 'System Online' : 'Offline mode'}</div>
     <div class="top-r" id="topr">
       <button class="chip hide-s" data-act="settings" title="Environment and mission settings">${icon('orbit')}${env.short}</button>
+      ${(() => { const n = Reminders.list().length; return `<button class="chip bell ${n ? 'has' : ''}" data-act="reminders" title="Reminders" aria-label="Reminders${n ? `, ${n} pending` : ''}">${icon('bell')}${n ? `<em class="num">${n}</em>` : ''}</button>`; })()}
       ${syncChip()}
       <button class="chip icon-only" data-act="theme" title="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode" aria-label="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
       ${Missions.has() ? `<div class="md" title="Mission day">MD <b class="num">${state.md}</b><button data-act="nextday" title="Advance to the next mission day (demo control)" aria-label="Advance to next mission day">${icon('next')}</button></div>` : ''}
@@ -172,7 +173,7 @@ function viewLobby() {
     : 'Your personal space. Log check-ins and explore every section — join or create a mission any time from the Mission tab.';
   const cta = locked
     ? `<button class="btn primary lg" data-act="view" data-v="mission">${icon('rocket')}Choose a mission</button>`
-    : `<button class="btn primary lg" data-act="checkin">${icon('plus')}${due ? `Start check-in<span class="btn-note">${due} due</span>` : 'Add info'}</button>
+    : `${(() => { const r = Reminders.list()[0]; return r ? `<button class="btn primary lg" data-act="${r.act}" data-v="${r.v || ''}" data-id="${r.id}">${icon(r.icon)}Next: ${esc(r.title)}</button>` : `<button class="btn primary lg" data-act="checkin">${icon('plus')}Add info</button>`; })()}
        <button class="btn ghost lg" data-act="ask">${icon('chat')}Questions</button>
        <button class="btn sos lg" data-act="help">${icon('siren')}Ask crew for help</button>`;
   // header in the style of the references: eyebrow, headline with an italic word, key numbers, a glass "live" panel
@@ -725,8 +726,8 @@ function render() {
   document.body.classList.remove('signed-out');
   Engine.today(); Crew.refresh();
   if (Missions.locked() && !['lobby', 'mission'].includes(ui.view)) ui.view = 'lobby';
-  // A status update is due every few hours: ask once per visit, when nothing else is open.
-  if (!ui.modal && !ui.statusAsked && !Missions.locked() && Status.due()) { ui.statusAsked = true; setTimeout(() => { if (!ui.modal && Auth.user()) actions.status(); }, 700); } // pick a mission first (guests skip this)
+  // Nothing pops up by itself: pending tasks become reminders (bell + notification).
+  if (!ui.remTicked) { ui.remTicked = true; setTimeout(() => Reminders.tick(), 1200); } // pick a mission first (guests skip this)
   renderTop(); renderNav();
   $('#banner').innerHTML = bannerHtml();
   const page = pageKey();
@@ -745,7 +746,7 @@ function renderModal() {
   if (!m) { el.hidden = true; el.innerHTML = ''; el.dataset.key = ''; el.classList.remove('out'); document.body.classList.remove('lock'); return; }
   el.hidden = false; document.body.classList.add('lock');
   el.innerHTML = m.type === 'measure' ? measureHtml(m) : m.type === 'done' ? doneHtml(m) : m.type === 'detail' ? detailHtml(m.id) : m.type === 'reauth' ? reauthHtml() : m.type === 'mate' ? mateHtml(m.id) : m.type === 'emergency' ? emergencyHtml(m)
-    : m.type === 'help' ? helpHtml(m) : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
+    : m.type === 'reminders' ? remindersHtml() : m.type === 'help' ? helpHtml(m) : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
   const key = m.type + (m.step || '') + (m.i ?? '');
   el.classList.toggle('fresh', el.dataset.key !== key); el.dataset.key = key;
   tickTimer();
@@ -857,6 +858,12 @@ const actions = {
     renderModal(); toast(`${r.added} medical items added to the ship inventory${r.updated ? `, ${r.updated} updated` : ''}`);
   },
   status() { ui.modal = { type: 'status', i: 0, ans: {} }; renderModal(); },
+  reminders() { ui.modal = { type: 'reminders' }; renderModal(); },
+  remlog(d) { const t = TASKS.find((x) => x.id === d.v); if (!t) return; ui.modal = null; openMeasure(CHECKIN_GROUPS.filter((g) => g.some((id) => t.ids.includes(id))), true); },
+  remdone(d) { const t = TASKS.find((x) => x.id === d.v); if (!t) return; Engine.today().tasks[t.id] = true; Engine.save(); toast(`${t.label} done · +15 XP`); if (ui.modal) renderModal(); render(); },
+  remlater(d) { Reminders.snooze(d.id, 60); toast('Reminder snoozed for an hour'); renderModal(); renderTop(); },
+  async remon() { const p = await Reminders.enable(); toast(p === 'granted' ? 'Notifications on — NovaCare will remind you' : 'Notifications were not allowed'); renderModal(); },
+  remoff() { Reminders.disable(); toast('Notifications off — reminders stay under the bell'); renderModal(); },
   stans(d) {
     const m = ui.modal; const q = Status.steps(m.ans)[m.i]; const opt = q.opts.find(([v]) => String(v) === d.v); if (!opt) return;
     const val = opt[0];
@@ -1090,6 +1097,10 @@ const netChange = () => { refreshConn(); if (Auth.user()) renderTop(); };
 window.addEventListener('online', netChange);
 window.addEventListener('offline', netChange);
 
+// reminders: check every minute; a tapped notification opens its reminder
+setInterval(() => Reminders.tick(), 60000);
+if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.reminder && Auth.user()) Reminders.run(e.data.reminder); });
+const remParam = new URLSearchParams(location.search).get('reminder'); if (remParam) setTimeout(() => { if (Auth.user()) Reminders.run(remParam); }, 1500);
 LocalLLM.ping(); // is the ship terminal's local model running? (never on the public website)
 if (Auth.restore()) Engine.load();
 else if (!Auth.hasUsers()) ui.auth = 'register';
