@@ -104,5 +104,114 @@ const Earth = (() => {
     });
   }
   let t; window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => paint(), 120); });
-  return { paint };
+
+  /* ---------- the spinning Earth on the sign-in screen ----------
+     The same planet, built once as a flat map (land, ice, clouds, city lights) from the same noise,
+     then wrapped onto a ball every frame. The sun stays still while the planet turns underneath it,
+     and the clouds drift a little faster than the ground. Nothing to download: it works offline. */
+  const TW = 1024, TH = 512, S = 480; // map size, ball size in pixels
+  let tex = null, texBusy = false, ball = null, raf = 0, last = 0;
+  const still = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function buildMap() {
+    return new Promise((resolve) => {
+      const day = new Uint8ClampedArray(TW * TH * 3), cloud = new Uint8ClampedArray(TW * TH), city = new Uint8ClampedArray(TW * TH);
+      let y = 0;
+      const step = () => {
+        const until = Math.min(TH, y + 24);
+        for (; y < until; y++) {
+          const lat = Math.PI / 2 - ((y + 0.5) / TH) * Math.PI; const cl0 = Math.cos(lat), py3 = Math.sin(lat);
+          for (let x = 0; x < TW; x++) {
+            const lon = ((x + 0.5) / TW) * Math.PI * 2; const px3 = cl0 * Math.cos(lon), pz3 = cl0 * Math.sin(lon);
+            const e = fbm(px3 * 1.7 + 11, py3 * 1.7 + 3, pz3 * 1.7 + 7, 6); const land = e > 0.53; let r, g, b;
+            if (land) {
+              const h = smooth(0.53, 0.72, e); const dry = fbm(px3 * 3 + 40, py3 * 3, pz3 * 3, 3);
+              r = mix(mix(46, 128, dry > 0.55 ? 1 : 0.15), 150, h * 0.6); g = mix(mix(92, 112, dry > 0.55 ? 1 : 0.1), 140, h * 0.5); b = mix(mix(44, 70, dry), 110, h * 0.5);
+            } else { const sh = smooth(0.4, 0.53, e); r = mix(6, 24, sh); g = mix(32, 92, sh); b = mix(78, 150, sh); }
+            const ice = smooth(0.82, 0.9, Math.abs(py3) + (fbm(px3 * 4, py3 * 4, pz3 * 4, 3) - 0.5) * 0.12);
+            const i = y * TW + x;
+            day[i * 3] = mix(r, 236, ice); day[i * 3 + 1] = mix(g, 242, ice); day[i * 3 + 2] = mix(b, 248, ice);
+            const cl = smooth(0.5, 0.72, fbm(px3 * 2.6 + 90, py3 * 3.2 + 20, pz3 * 2.6 + 50, 5)) * 0.92;
+            cloud[i] = cl * 255;
+            if (land && !ice) { const c = noise(px3 * 90, py3 * 90, pz3 * 90); if (c > 0.78) city[i] = Math.min(255, (c - 0.78) * 4 * 255); }
+          }
+        }
+        if (y < TH) { setTimeout(step, 0); return; }
+        resolve({ day, cloud, city });
+      };
+      step();
+    });
+  }
+
+  /* For each pixel of the ball: where it looks on the map (before turning) and how the sun lights it. */
+  function buildBall() {
+    const R = S / 2 - 1, cx = S / 2, cy = S / 2;
+    const L = (() => { const v = [-0.62, 0.38, 0.69]; const m = Math.hypot(...v); return v.map((x) => x / m); })();
+    const tilt = 0.32, roll = -0.41, ct = Math.cos(tilt), st = Math.sin(tilt), cr = Math.cos(roll), sr = Math.sin(roll);
+    const pix = [], u = [], v = [], light = [], night = [], rim = [], alpha = [];
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const dx = (x + 0.5 - cx) / R, dy = (y + 0.5 - cy) / R, d = Math.sqrt(dx * dx + dy * dy); if (d > 1 + 1.2 / R) continue;
+      const k = Math.min(1, d); const nx = k === d ? dx : dx / d * k, ny0 = k === d ? dy : dy / d * k;
+      const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny0 * ny0)), ny = -ny0;
+      // the planet's axis leans toward us (tilt) and sideways (roll), like the real 23° axial tilt
+      const rx = nx * cr - ny * sr, ry = nx * sr + ny * cr;
+      const ay = ry * ct - nz * st, az = ry * st + nz * ct;
+      const lat = Math.asin(Math.max(-1, Math.min(1, ay))), lon = Math.atan2(az, rx);
+      const lam = nx * L[0] + ny * L[1] + nz * L[2]; const dayk = smooth(-0.12, 0.4, lam); const lit = 0.07 + 0.98 * Math.max(0, lam) ** 0.8;
+      pix.push((y * S + x) * 4); u.push(((lon / (Math.PI * 2)) + 1) % 1 * TW); v.push(Math.min(TH - 1, Math.floor((0.5 - lat / Math.PI) * TH)));
+      light.push(mix(0.06, lit, dayk)); night.push(dayk < 0.5 ? 1 - dayk * 2 : 0); rim.push((1 - nz) ** 2.5 * (0.35 + 0.65 * dayk));
+      alpha.push(Math.max(0, Math.min(1, (1 - d) * R + 0.5)) * 255);
+    }
+    return { pix: Int32Array.from(pix), u: Float32Array.from(u), v: Int32Array.from(v), light: Float32Array.from(light), night: Float32Array.from(night), rim: Float32Array.from(rim), alpha: Uint8ClampedArray.from(alpha) };
+  }
+
+  function frame(img, turn) {
+    const px = img.data, { pix, u, v, light, night, rim, alpha } = ball, { day, cloud, city } = tex;
+    const g0 = turn * TW, c0 = turn * TW * 1.12; // the clouds drift a little faster
+    for (let j = 0; j < pix.length; j++) {
+      const row = v[j] * TW;
+      const ti = row + (((u[j] + g0) | 0) % TW), ci = row + (((u[j] + c0) | 0) % TW);
+      const cl = cloud[ci] / 255;
+      let r = day[ti * 3] + (245 - day[ti * 3]) * cl, g = day[ti * 3 + 1] + (248 - day[ti * 3 + 1]) * cl, b = day[ti * 3 + 2] + (252 - day[ti * 3 + 2]) * cl;
+      const li = light[j]; r *= li; g *= li; b *= li * (li < 0.1 ? 1.4 : 1);
+      if (night[j] && city[ti] && cl < 0.3) { const k = (city[ti] / 255) * night[j]; r += 255 * k; g += 190 * k; b += 90 * k; }
+      const m = rim[j]; r += (110 - r) * m * 0.55; g += (170 - g) * m * 0.6; b += (255 - b) * m * 0.7;
+      const o = pix[j]; px[o] = r; px[o + 1] = g; px[o + 2] = b; px[o + 3] = alpha[j];
+    }
+  }
+
+  let stars = null;
+  function starfield() {
+    if (stars) return stars;
+    const c = document.createElement('canvas'); c.width = c.height = 360; const g = c.getContext('2d');
+    for (let i = 0; i < 140; i++) { const r = hash(i, 5, 1), s = hash(i, 9, 4); g.fillStyle = `rgba(255,255,255,${0.2 + 0.8 * hash(i, 3, 8)})`; const z = s > 0.96 ? 2 : 1; g.fillRect(Math.floor(r * 360), Math.floor(s * 360), z, z); }
+    return (stars = c.toDataURL('image/png'));
+  }
+
+  /** Start (or keep) the spinning Earth on every ".earth-spin" canvas in the page. */
+  function spin(root = document) {
+    const canvases = [...root.querySelectorAll('canvas.earth-spin')]; if (!canvases.length) return;
+    canvases.forEach((c) => { const box = c.closest('.auth-earth'); if (box && !box.dataset.stars) { box.dataset.stars = '1'; box.style.setProperty('--stars', `url(${starfield()})`); } });
+    if (!tex) {
+      if (!texBusy) { texBusy = true; buildMap().then((m) => { tex = m; ball = ball || buildBall(); texBusy = false; spin(); }); }
+      return;
+    }
+    const t0 = performance.now();
+    const draw = (now) => {
+      const live = [...document.querySelectorAll('canvas.earth-spin')];
+      if (!live.length) { raf = 0; return; } // the sign-in screen is gone: stop
+      if (now - last >= 33 || !last) { // about 30 frames a second is smooth enough and saves battery
+        last = now; const turn = ((now / 90000) % 1); // one full turn every 90 seconds
+        live.forEach((c) => {
+          if (c.width !== S) { c.width = S; c.height = S; }
+          const g = c.getContext('2d'); if (!c._img) c._img = g.createImageData(S, S);
+          frame(c._img, turn); g.putImageData(c._img, 0, 0); c.classList.add('on');
+        });
+      }
+      if (!still() && !document.hidden) raf = requestAnimationFrame(draw); else raf = 0;
+    };
+    if (!raf) { last = 0; draw(t0); }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !raf) spin(); });
+  return { paint, spin };
 })();

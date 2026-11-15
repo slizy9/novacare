@@ -732,7 +732,7 @@ function authHtml() {
   const reg = ui.auth === 'register';
   const f = (id, label, type, ic, extra = '') => `<div class="field"><label for="au-${id}" class="vh">${label}</label><div class="inp">${icon(ic)}<input id="au-${id}" name="${id}" type="${type}" aria-label="${label}" ${extra}>${type === 'password' ? `<button type="button" class="eye" data-act="pwshow" aria-label="Show password">${icon('eye')}</button>` : ''}</div></div>`;
   const shell = (inner, foot) => `<section class="auth">
-    <div class="auth-photo" aria-hidden="true"><img src="img/station.jpg" alt=""></div>
+    <div class="auth-photo auth-earth" aria-hidden="true"><div class="earth-ball"><canvas class="earth-spin" width="480" height="480"></canvas></div></div>
     <div class="auth-main"><div class="auth-title"><h1>${SWOOSH}NovaCare</h1><p>Health Monitoring System</p></div>
       <div class="card auth-card">${inner}</div>${foot}</div></section>`;
   const back = '<p class="auth-switch"><button type="button" class="link" data-act="authtab" data-v="login">Back to sign in</button></p>';
@@ -751,7 +751,7 @@ function authHtml() {
         <p class="auth-err" role="alert">${esc(ui.authErr)}</p><button class="btn primary big" type="submit" ${ui.busy ? 'disabled' : ''}>Save and sign in</button></form>`, back);
   }
   return `<section class="auth">
-    <div class="auth-photo" aria-hidden="true"><img src="img/station.jpg" alt=""></div>
+    <div class="auth-photo auth-earth" aria-hidden="true"><div class="earth-ball"><canvas class="earth-spin" width="480" height="480"></canvas></div></div>
     <div class="auth-main">
       <div class="auth-title"><h1>${SWOOSH}NovaCare</h1><p>Health Monitoring System</p></div>
       <div class="card auth-card">
@@ -789,6 +789,7 @@ function renderAuth() {
   top.innerHTML = `<div class="brand">${LOGO}<div><b>NovaCare</b></div></div>`;
   $('#app').innerHTML = authHtml();
   if (!(ui.modal && ui.modal.type === 'firstaid')) ui.modal = null;
+  Earth.spin($('#app')); // the planet turns behind the sign-in form
   renderModal(); renderSos(); renderTakeover();
   const first = $('#auth-form input'); if (first && !ui.modal) first.focus();
 }

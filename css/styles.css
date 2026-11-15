@@ -1839,3 +1839,16 @@ body.lock #sos-fab { display: none; }
   #sos-fab { min-height: 48px; width: 48px; padding: 0; justify-content: center; right: 12px; bottom: calc(12px + var(--navh, 0px)); }
   #sos-fab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+
+/* sign-in: the Earth turning in space (drawn by js/earth.js) */
+.auth-photo.auth-earth { clip-path: none; overflow: hidden; display: grid; place-items: center; container-type: size;
+  background: var(--stars, none) 0 0 / 360px 360px repeat, radial-gradient(120% 90% at 28% 18%, #142a5c 0%, #081230 50%, #03060f 100%); }
+.auth-photo.auth-earth::after { content: none; }
+.earth-ball { position: relative; width: min(86cqw, 86cqh, 600px); aspect-ratio: 1; }
+.earth-ball::before { content: ""; position: absolute; inset: -7%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgb(90 160 255 / 0.42) 64%, rgb(70 130 255 / 0.14) 70%, rgb(60 110 255 / 0) 76%); }
+.earth-spin { position: relative; display: block; width: 100%; height: 100%; opacity: 0; transform: scale(0.96); transition: opacity 1.4s ease, transform 1.4s ease; }
+.earth-spin.on { opacity: 1; transform: none; }
+@media (max-width: 760px) { .auth-photo.auth-earth { height: 210px; } }
+@media (max-width: 560px) { .auth-photo.auth-earth { height: 170px; max-height: none; } }
+@media (prefers-reduced-motion: reduce) { .earth-spin { transition: none; } }

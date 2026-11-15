@@ -282,12 +282,12 @@ const Assistant = (() => {
   function kbAnswer(hits, person) {
     const e = hits[0].e; const also = hits.slice(1).filter((h) => h.s > hits[0].s * 0.6).map((h) => h.e);
     const srcs = e.src.map((k) => SRC[k]).filter(Boolean);
-    const html = `<p class="kb-h"><span class="kb-cat ${e.cat}">${{ medical: 'Medical', wellbeing: 'Wellbeing', ship: 'Ship' }[e.cat]}</span><b>${esc(e.title)}</b></p>
+    const html = `${e.fallback ? `<p class="muted small">${tr('No specific onboard protocol matched your question — here is the general approach.', 'Ningún protocolo específico coincide con tu pregunta: este es el enfoque general.')}</p>` : ''}<p class="kb-h"><span class="kb-cat ${e.cat}">${{ medical: 'Medical', wellbeing: 'Wellbeing', ship: 'Ship' }[e.cat]}</span><b>${esc(e.title)}</b></p>
       <p>${esc(e.a)}</p><ol>${e.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
       <p class="l2"><b>${tr('Escalate', 'Escalar')}:</b> ${esc(e.esc)}</p>
       ${also.length ? `<p class="muted small">${tr('Related', 'Relacionado')}: ${also.map((x) => esc(x.title)).join(' · ')}</p>` : ''}
       <p class="src">${icon('shield')}<span>${tr('Source: onboard protocol', 'Fuente: protocolo a bordo')} <code>KB-${e.id}</code> (${tr('knowledge base', 'base de conocimiento')} v${KB_VERSION}), ${esc(Protocols.text('KB-' + e.id))}${ANSWER_LANG === 'es' ? ' · texto del protocolo en inglés' : ''}${srcs.length ? ' · ' + srcs.map((x) => `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(' · ') : ''}</span></p>`;
-    return { html, say: `${e.title}. ${e.a} ${e.steps[0]} ${e.esc}`, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : null, kb: hits.map((h) => h.e) };
+    return { html, say: `${e.title}. ${e.a} ${e.steps[0]} ${e.esc}`, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : e.id === 'GEN-01' && person.me ? { label: tr('Record this symptom', 'Registrar este síntoma'), act: 'status' } : null, kb: hits.map((h) => h.e) };
   }
 
   function predictAnswer(person) {
@@ -395,10 +395,20 @@ const Assistant = (() => {
       return { html: `<p><b>${esc(s.name)}:</b> <span class="${lc(lv)}">${lvlWord(lv)}</span>.</p><p>${esc(s.space)}</p>${indicatorAnswer(s.indicators, person).html}`, say: `${s.name}: ${lvlWord(lv)}.` };
     }
     if (ctx.emg) return emergencyAdvice(ctx.emg, person);
-    // 4) nothing covers it: escalate
+    // 4) nothing specific: a symptom or a feeling still gets the general approach; anything else escalates
+    const general = generalFallback(t);
+    if (general) return kbAnswer([{ e: general, s: 0 }], person);
     return noProtocol();
   }
-  const SUGGEST = ['What risks do I have ahead?', 'How am I doing?', 'Is my blood pressure OK?', 'I have a headache', 'I feel anxious', 'I can\'t sleep', 'Cabin CO₂ is high', 'Can I take ibuprofen?', 'Can I give Mei amoxicillin?'];
+  /* Body, pain or illness words → the general symptom approach (GEN-01); feelings → GEN-02. */
+  const BODY_RX = /pain|hurt|ache|sore|swell|symptom|sick|\bill\b|disease|illness|itch|bleed|injur|lump|rash|fever|infect|cough|numb|\bweak|medical|health|body|head|\beyes?\b|\bears?\b|nose|mouth|throat|neck|shoulder|\barm|elbow|hand|finger|chest|back|stomach|belly|\bhip|\bleg|knee|\bfoot|feet|\btoe|skin|dolor|duel|molest|sintom|enferm|hinch|picaz|pica\b|sangr|herid|lesion|infecc|grano|bulto|fiebre|\btos\b|salud|cuerpo|malestar|cabeza|\bojos?\b|oido|oreja|nariz|boca|garganta|cuello|hombro|brazo|codo|\bmanos?\b|dedo|pecho|espalda|estomago|panza|barriga|cadera|pierna|rodilla|\bpies?\b|\bpiel\b|lengua|labio|muela|diente|una\b.*(rara|extrana)/;
+  const MIND_RX = /feel|felt|emotion|mood|\bmind|mental|psych|worr|scared|afraid|upset|\bcry|lonely|stress|nervous|sad|angry|happy|siento|sentir|senti|emocion|animo|\bmente|psicolog|preocup|miedo|asust|llor|angust|estres|nervios|triste|enojad|feliz|me pasa/;
+  function generalFallback(t) {
+    if (BODY_RX.test(t)) return KBI['GEN-01'];
+    if (MIND_RX.test(t)) return KBI['GEN-02'];
+    return null;
+  }
+  const SUGGEST = ['What risks do I have ahead?', 'How am I doing?', 'Is my blood pressure OK?', 'I have a headache', 'I have a migraine', 'I feel anxious', 'I can\'t sleep', 'Cabin CO₂ is high', 'Can I take ibuprofen?', 'Can I give Mei amoxicillin?'];
   const SUGGEST_EMG = ['What medicine can I give?', 'Can I give amoxicillin?', 'Is it safe to give aspirin?', 'What are their allergies?', 'Do we have oxygen?'];
   return { answer, SUGGEST, SUGGEST_EMG, drugAnswer };
 })();
