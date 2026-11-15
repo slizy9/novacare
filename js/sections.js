@@ -326,38 +326,28 @@ function missionReport() {
 function viewAnalysis() {
   const crew = Crew.members(); const find = Crew.findings(crew);
   const ranked = crew.map((m, i) => ({ m, i, v: Crew.verdict(m) })).sort((a, b) => b.v.level - a.v.level || (a.m.readiness ?? 0) - (b.m.readiness ?? 0));
-  const seen = new Set();
-  const groups = SYSTEMS.map((s) => ({ s, ids: s.indicators.filter((id) => !seen.has(id) && seen.add(id)) })).filter((g) => g.ids.length);
-  const ahead = crew.filter((m) => !m.me && (m.predict || []).length);
-  // most important first; long lists show their top items and fold the rest
-  const shown = ui.allVerd ? ranked : ranked.slice(0, 4);
-  const crewRisks = ahead.flatMap((m) => m.predict.map((p) => ({ m, p }))).sort((a, b) => b.p.level - a.p.level);
-  return pageHead('Insights', 'Who is doing well and who needs help — most urgent first.') +
-  `<div class="an-grid">
-    <section class="card"><div class="card-h"><h2>How each astronaut is doing</h2><span class="muted small">${ranked.length} on this mission</span></div>
-      <ul class="verdicts">${shown.map(({ m, i, v }) => `<li class="${lc(v.level)}">
-        <div class="vd-h">${avatar(m, i)}<div class="grow"><b>${m.me ? 'You' : esc(m.name)}</b><small>${esc(m.role || '')}</small></div>${verdictPill(v)}</div>
-        <ul class="reasons">${v.reasons.slice(0, 3).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
-        ${m.me ? '<button class="btn ghost sm" data-act="view" data-v="overview">Open my status</button>' : `<button class="btn ghost sm" data-act="mate" data-id="${esc(m.id)}">View details</button>`}
-      </li>`).join('')}</ul>
-      ${ranked.length > 4 ? `<button class="btn quiet sm more" data-act="allverd">${ui.allVerd ? 'Show fewer' : `Show all ${ranked.length}`}</button>` : ''}
-    </section>
-    <section class="card"><div class="card-h"><h2>Crew-wide patterns</h2><span class="muted small">${find.length ? `${find.length} found` : ''}</span></div>
-      ${find.length ? `<ul class="findings">${(ui.allFind ? find : find.slice(0, 3)).map((f) => `<li class="${lc(f.level)}">${mark(f.level)}<div><b>${esc(f.title)}</b><p>${esc(f.detail)}</p><p class="act"><span>What to do</span>${esc(f.act)}</p></div></li>`).join('')}</ul>${find.length > 3 ? `<button class="btn quiet sm more" data-act="allfind">${ui.allFind ? 'Show fewer' : `Show ${find.length - 3} more`}</button>` : ''}`
-        : `<p class="empty">No crew-wide pattern found. Individual findings are listed on the left.</p>`}
-    </section>
-  </div>
-  ${predictCard(Predict.all(), { limit: ui.allPred ? 0 : 2, toggle: true })}
-  ${crewRisks.length ? `<section class="card"><div class="card-h"><h2>${icon('chart')}Risks ahead for the crew</h2><span class="muted small">If current trends continue</span></div>
-    <ul class="findings">${(ui.allRisk ? crewRisks : crewRisks.slice(0, 3)).map(({ m, p }) => `<li class="${lc(p.level)}">${mark(p.level)}<div><b>${esc(firstName(m))}: ${esc(p.title)}</b><p>${esc(p.text)}</p></div></li>`).join('')}</ul>
-    ${crewRisks.length > 3 ? `<button class="btn quiet sm more" data-act="allrisk">${ui.allRisk ? 'Show fewer' : `Show ${crewRisks.length - 3} more`}</button>` : ''}</section>` : ''}
-  <section class="card"><div class="card-h"><h2>Readiness by crew member</h2><span class="muted small">Last 14 days</span></div>${crewChart(crew, 14, false)}</section>
-  <details class="card disclose"><summary><h2>Full indicator matrix</h2><span class="muted small">Latest value of every indicator, by crew member</span>${icon('next')}</summary>
-    <div class="tbl-wrap"><table class="heat"><thead><tr><th rowspan="2">Crew member</th>${groups.map((g) => `<th colspan="${g.ids.length}" class="grp">${g.s.name}</th>`).join('')}</tr>
-      <tr>${groups.map((g) => g.ids.map((id) => `<th class="ind" title="${esc(IND[id].name)}">${IND[id].short}</th>`).join('')).join('')}</tr></thead>
-      <tbody>${crew.map((m, i) => `<tr><th class="who">${avatar(m, i, 'sm')}${m.me ? 'You' : esc(firstName(m))}</th>${groups.map((g) => g.ids.map((id) => { const l = m.latest[id] || {}; const lvl = l.v == null ? -1 : l.level;
-        return `<td class="${lc(lvl)}" title="${esc(IND[id].short)}: ${l.v == null ? 'no data' : `${Engine.fmt(IND[id], l.v)} ${IND[id].unit} · ${levelText(lvl)}`}">${mark(lvl)}<span class="num">${l.v == null ? '—' : Engine.fmt(IND[id], l.v)}</span></td>`; }).join('')).join('')}</tr>`).join('')}</tbody>
-    </table></div>
-    <p class="legend">${LEVELS.map((l, k) => `<span class="${lc(k)}">${l.sym} ${l.name}</span>`).join('')}<span class="ln">○ No recent data</span></p>
-  </details>`;
+  const need = ranked.filter((r) => r.v.level >= 2).length;
+  // one list for everything ahead: crew-wide patterns, your own predicted risks, and each crewmate's
+  const items = [
+    ...find.map((f) => ({ level: f.level, title: f.title, who: 'Crew', text: f.detail, act: f.act })),
+    ...Predict.all().filter((p) => p.level > 0).map((p) => ({ level: p.level, title: p.title, who: 'You', text: p.text, act: (p.act || [])[0] || '' })),
+    ...crew.filter((m) => !m.me).flatMap((m) => (m.predict || []).map((p) => ({ level: p.level, title: p.title, who: firstName(m), text: p.text, act: '' }))),
+  ].sort((a, b) => b.level - a.level);
+  const shownItems = ui.allFind ? items : items.slice(0, 4);
+  const person = ({ m, i, v }) => `<details class="acc ${lc(v.level)}">
+      <summary>${avatar(m, i)}<span class="acc-t"><b>${m.me ? 'You' : esc(m.name)}</b><small>${esc(v.reasons[0] || m.role || '')}</small></span>${verdictPill(v)}${icon('next', 'acc-go')}</summary>
+      <div class="acc-b">
+        <h4>Measurements · last 30 days</h4>${healthCharts(m, ['hr', 'sys', 'spo2', 'temp', 'sleep', 'mass'])}
+        <h4>Medical results</h4>${examList(m)}
+        ${(m.care || []).length ? `<h4>In follow-up</h4><ul class="mres">${m.care.map((c) => `<li class="${lc(c.status === 'review' || c.status === 'clearing' ? 0 : c.level)}"><span class="dot"></span><b>${esc(c.title)}</b><span>${esc(c.stage)}</span></li>`).join('')}</ul>` : ''}
+        <div class="btnrow">${m.me ? '<button class="btn ghost sm" data-act="view" data-v="overview">Open my health</button>' : `<button class="btn ghost sm" data-act="mate" data-id="${esc(m.id)}">Allergies, history and emergency</button>`}</div>
+      </div></details>`;
+  return pageHead('Insights', need ? `${need} of ${ranked.length} need attention — they are listed first.` : `All ${ranked.length} astronauts are on track or being watched.`) +
+  `<section class="card"><div class="card-h"><div><h2>How each astronaut is doing</h2><p class="muted small">Open a name to see their measurements and medical results.</p></div></div>
+    <div class="acc-list">${ranked.map(person).join('')}</div></section>
+  <section class="card"><div class="card-h"><div><h2>${icon('chart')}Patterns and risks ahead</h2><p class="muted small">${items.length ? 'What the crew shares and what is coming if trends continue.' : 'Nothing found across the crew.'}</p></div></div>
+    ${items.length ? `<div class="acc-list">${shownItems.map((it) => `<details class="acc ${lc(it.level)}"><summary>${mark(it.level)}<span class="acc-t"><b>${esc(it.title)}</b><small>${esc(it.who)}</small></span>${icon('next', 'acc-go')}</summary>
+      <div class="acc-b"><p>${esc(it.text)}</p>${it.act ? `<p class="act"><b>What to do:</b> ${esc(it.act)}</p>` : ''}</div></details>`).join('')}</div>
+    ${items.length > 4 ? `<button class="btn quiet sm more" data-act="allfind">${ui.allFind ? 'Show fewer' : `Show ${items.length - 4} more`}</button>` : ''}` : ''}</section>
+  <section class="card"><div class="card-h"><h2>Readiness by crew member</h2><span class="muted small">Last 14 days</span></div>${crewChart(crew, 14, false)}</section>`;
 }

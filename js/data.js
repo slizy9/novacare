@@ -504,6 +504,10 @@ const CHECKIN_GROUPS = [
   ['water'], ['exercise'], ['mass'], ['vision'], ['rad'], ['co2'], ['ecg'], ['urine'], ['ultra'], ['pexam'],
 ];
 
+/* Measurements charted in Insights and Hazards, and the exam results shown beside them. */
+const CHART_IDS = ['hr', 'sys', 'dia', 'spo2', 'temp', 'sleep', 'mass', 'mood', 'stress', 'exercise', 'water', 'vision', 'rad', 'co2', 'glu'];
+const EXAM_IDS = ['ecg', 'urine', 'ultra', 'pexam'];
+
 const SYSTEMS = [
   {
     id: 'brain', name: 'Brain & behavior', indicators: ['sleep', 'mood', 'stress'], hazards: ['isolation', 'distance'],

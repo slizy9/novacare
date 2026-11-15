@@ -103,13 +103,16 @@ const Crew = (() => {
       }
       const latest = {};
       INDICATORS.forEach((i) => { const st = Engine.status(i.id); latest[i.id] = { v: st.v, level: st.stale ? -1 : st.level, md: st.md }; });
+      // the last 30 days of each charted measurement, and every exam, so crewmates' charts can be drawn
+      const series = {};
+      [...CHART_IDS, ...EXAM_IDS].forEach((id) => { const p = Engine.series(id).filter((x) => x.md > md - 30); if (p.length) series[id] = p.map((x) => [x.md, x.v]); });
       const systems = {};
       SYSTEMS.forEach((x) => { systems[x.id] = Engine.systemLevel(x.id); });
       const last7 = days.slice(-7);
       return {
         id: meta.id, name: meta.name || s.name || 'Crew member', role: meta.role || '', sim: !!meta.sim, me: !!meta.me,
         photo: photoFor(meta.name || s.name, s.photo),
-        md, env: s.env, readiness: Engine.readiness(), days, latest, systems,
+        md, env: s.env, readiness: Engine.readiness(), days, latest, systems, series,
         advisories: typeof Insight !== 'undefined' ? Insight.findings({ lite: true }).map((f) => ({ key: f.key, title: f.title, level: f.level, trend: f.kind === 'Trend', ind: f.ind, detail: f.detail, who: f.who }))
           : adv.map((a) => ({ key: a.key, title: a.title, level: a.level, trend: !!a.trend, ind: a.ind, detail: a.detail, who: a.esc.who })),
         dose: Engine.cumulativeDose(), checkedInToday: Engine.checkedIn(s.days[md]),

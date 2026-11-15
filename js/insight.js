@@ -459,3 +459,90 @@ function careCard() {
     ${open.length > 4 ? `<button class="btn quiet sm" data-act="alladv">${ui.allAdv ? 'Show fewer' : `Show ${open.length - 4} more`}</button>` : ''}
   </section>`;
 }
+
+/* ---------- charts: one measurement per small chart, the person's normal range shaded ----------
+   Single series, so no categorical colours: the line is ink, the shaded band is the safe range, and the
+   last point carries the status colour together with its symbol and word. Hover shows each reading. */
+function miniChart(id, pts, opts = {}) {
+  const ind = IND[id]; if (!ind || !pts || !pts.length) return '';
+  const W = 240, H = 72, L = 6, R = 12, T = 10, B = 16;
+  const c = id === 'mass' ? { baselineMass: pts[0][1], baselineHr: null } : (opts.ctx || Engine.ctx());
+  const b = ind.bands(Engine.env(), c); const vs = pts.map((p) => p[1]);
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  const okLo = Number.isFinite(b.ok[0]) ? b.ok[0] : lo, okHi = Number.isFinite(b.ok[1]) ? b.ok[1] : hi;
+  if (ind.type === 'scale') { lo = ind.min; hi = ind.max; }
+  else { // scale to the readings so change is visible, but never narrower than a quarter of the safe range
+    const minSpan = Math.max((okHi - okLo) * 0.25, ind.step * 4); const mid = (lo + hi) / 2;
+    if (hi - lo < minSpan) { lo = mid - minSpan / 2; hi = mid + minSpan / 2; }
+  }
+  const pad = (hi - lo) * 0.12 || 1; lo -= pad; hi += pad;
+  const d0 = pts[0][0], d1 = pts[pts.length - 1][0];
+  const x = (md) => L + (d1 > d0 ? (md - d0) / (d1 - d0) : 0.5) * (W - L - R);
+  const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  const lv = (v) => Engine.classify(ind, v, c).level; const last = pts[pts.length - 1];
+  const bTop = Math.min(hi, okHi), bBot = Math.max(lo, okLo);
+  const band = bTop > bBot ? `<rect class="mc-band" x="${L}" y="${y(bTop).toFixed(1)}" width="${W - L - R}" height="${Math.max(1, y(bBot) - y(bTop)).toFixed(1)}" rx="3"/>` : '';
+  const line = pts.length > 1 ? `<path class="mc-line" d="${pts.map(([d, v], k) => `${k ? 'L' : 'M'}${x(d).toFixed(1)} ${y(v).toFixed(1)}`).join(' ')}"/>` : '';
+  const data = pts.map(([d, v]) => `${d}:${v}`).join(';');
+  const label = `${ind.name}: ${pts.length} reading${pts.length > 1 ? 's' : ''} from MD ${d0} to MD ${d1}, latest ${Engine.fmt(ind, last[1])} ${ind.unit}`;
+  return `<svg class="mc-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}" data-id="${id}" data-pts="${data}" data-c="${c.baselineMass || ''}">${band}${line}
+    <circle class="mc-pt ${lc(lv(last[1]))}" cx="${x(last[0]).toFixed(1)}" cy="${y(last[1]).toFixed(1)}" r="4"/>
+    <line class="mc-x" x1="0" x2="0" y1="${T}" y2="${H - B}" hidden/><circle class="mc-h" r="4" hidden/>
+    <text class="mc-ax" x="${L}" y="${H - 3}">MD ${d0}</text><text class="mc-ax" x="${W - R}" y="${H - 3}" text-anchor="end">MD ${d1}</text></svg>`;
+}
+/** A chart tile: the name, the latest value with its status, and the chart. */
+function chartTile(id, pts, latest, opts = {}) {
+  const ind = IND[id]; const l = latest || {}; const lvl = l.v == null ? -1 : l.level;
+  let val = l.v == null ? '—' : ind.type === 'scale' ? esc(Engine.label(ind, l.v)) : `${Engine.fmt(ind, l.v)}<small> ${ind.unit}</small>`;
+  if (id === 'sys' && l.v != null && opts.dia != null) val = `${l.v}/${opts.dia}<small> mmHg</small>`;
+  return `<figure class="mc ${lc(lvl)}"><figcaption><span class="mc-n">${esc(opts.name || ind.short)}</span><b class="num">${val}</b>
+      <span class="mc-s"><span class="dot"></span>${l.v == null ? 'No readings' : `${levelText(lvl)}${l.md ? ` · MD ${l.md}` : ''}`}</span></figcaption>
+    ${pts && pts.length ? miniChart(id, pts, opts) : `<p class="muted small mc-none">${l.v != null ? 'Only the latest reading is shared so far — the history appears after their next sync with the updated app.' : 'Not measured in the last 30 days.'}</p>`}<span class="mc-tip" hidden></span></figure>`;
+}
+/** Charts for one person: the series and latest values come from their summary (or from your own record). */
+function healthCharts(m, ids) {
+  const s = m.series || {};
+  return `<div class="mc-grid">${ids.map((id) => chartTile(id, s[id], m.latest[id], id === 'sys' ? { name: 'Blood pressure', dia: (m.latest.dia || {}).v } : {})).join('')}</div>`;
+}
+/** Exam results: the latest of each, or that it has not been done. */
+function examList(m) {
+  return `<ul class="mres">${EXAM_IDS.map((id) => { const l = m.latest[id] || {}; const lvl = l.v == null ? -1 : l.level;
+    return `<li class="${lc(lvl)}"><span class="dot"></span><b>${esc(IND[id].short)}</b><span>${l.v == null ? 'Not done yet' : `${esc(Engine.label(IND[id], l.v))} · MD ${l.md}`}</span></li>`; }).join('')}</ul>`;
+}
+/* hover: a crosshair and the reading under the pointer */
+document.addEventListener('pointermove', (ev) => {
+  const svg = ev.target.closest && ev.target.closest('.mc-svg'); const tips = document.querySelectorAll('.mc-tip:not([hidden])');
+  tips.forEach((t) => { if (!svg || !svg.parentElement.contains(t)) { t.hidden = true; const s2 = t.parentElement.querySelector('.mc-svg'); if (s2) { s2.querySelector('.mc-x').setAttribute('hidden', ''); s2.querySelector('.mc-h').setAttribute('hidden', ''); } } });
+  if (!svg) return;
+  const ind = IND[svg.dataset.id]; const pts = svg.dataset.pts.split(';').map((p) => p.split(':').map(Number)); if (!ind || !pts.length) return;
+  const r = svg.getBoundingClientRect(); const vb = svg.viewBox.baseVal; const px = ((ev.clientX - r.left) / r.width) * vb.width;
+  const path = svg.querySelector('.mc-line'); const W = vb.width, L = 6, R = 12; const d0 = pts[0][0], d1 = pts[pts.length - 1][0];
+  const x = (md) => L + (d1 > d0 ? (md - d0) / (d1 - d0) : 0.5) * (W - L - R);
+  const near = pts.reduce((a, p) => (Math.abs(x(p[0]) - px) < Math.abs(x(a[0]) - px) ? p : a), pts[0]);
+  const pt = svg.querySelector('.mc-pt'); const yy = (() => { if (!path) return +pt.getAttribute('cy'); const seg = path.getAttribute('d').split(/[ML]/).filter(Boolean)[pts.indexOf(near)]; return seg ? +seg.trim().split(' ')[1] : +pt.getAttribute('cy'); })();
+  const xl = svg.querySelector('.mc-x'), hc = svg.querySelector('.mc-h');
+  xl.setAttribute('x1', x(near[0])); xl.setAttribute('x2', x(near[0])); xl.removeAttribute('hidden');
+  hc.setAttribute('cx', x(near[0])); hc.setAttribute('cy', yy); hc.removeAttribute('hidden');
+  const c = svg.dataset.c ? { baselineMass: +svg.dataset.c } : Engine.ctx(); const lvl = Engine.classify(ind, near[1], c).level;
+  const tip = svg.parentElement.querySelector('.mc-tip');
+  tip.innerHTML = `<b>MD ${near[0]}</b> ${ind.type === 'scale' ? esc(Engine.label(ind, near[1])) : `${Engine.fmt(ind, near[1])} ${ind.unit}`} · <span class="${lc(lvl)}">${LEVELS[lvl].sym} ${LEVELS[lvl].name}</span>`;
+  tip.hidden = false; tip.style.left = `${Math.min(Math.max(0, (x(near[0]) / W) * r.width - 40), r.width - 150)}px`;
+});
+
+/* ---------- care milestones: what the old points and patches become ---------- */
+function careMilestones() {
+  const p = Medical.mine(); const run = (pred) => { let best = 0, n = 0; for (let d = 1; d <= state.md; d++) { if (pred(state.days[d])) { n++; best = Math.max(best, n); } else n = 0; } return best; };
+  const full = (day) => !!day && (day.checkinAt || Engine.checkedIn(day));
+  const e = Engine.env(); const val = (k, f) => (day) => !!day && day.vals[k] != null && f(day.vals[k]);
+  const cases = typeof Care !== 'undefined' ? Object.values(Care.all()) : [];
+  return [
+    { icon: '✚', name: 'Medical profile', desc: 'Allergies, medication and blood type recorded', got: !Medical.empty(p) && !!p.blood },
+    { icon: '◎', name: 'Personal baseline', desc: 'Pre-flight heart rate and blood pressure recorded', got: !!(p.baseline && p.baseline.hr && p.baseline.sys) },
+    { icon: '✦', name: 'First check-in', desc: 'Your record has started', got: run(full) >= 1 },
+    { icon: '7', name: 'Complete week', desc: 'A check-in every day for 7 days', got: run(full) >= 7 },
+    { icon: '✓', name: 'First discharge', desc: 'A follow-up closed back in your normal range', got: cases.some((c) => c.status === 'discharged') },
+    { icon: '▤', name: 'Exam on record', desc: 'An ECG, urine test, ultrasound or CMO exam recorded', got: EXAM_IDS.some((id) => Engine.series(id).length) },
+    { icon: '⛭', name: 'Countermeasure kept', desc: 'Exercise prescription met 5 days running', got: run(val('exercise', (v) => v >= e.exTarget * 0.75)) >= 5 },
+    { icon: '☾', name: 'Sleep protected', desc: '7+ hours of sleep 5 nights running', got: run(val('sleep', (v) => v >= 7)) >= 5 },
+  ];
+}

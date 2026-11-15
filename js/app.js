@@ -310,7 +310,9 @@ function directoryHtml(mine) {
 /* Personal overview: who you are, key vitals, health shortcuts and the body scan. */
 function overviewTop() {
   const u = Auth.user(); const hr = Engine.status('hr'); const mission = Missions.current();
-  const sel = SYS[ui.sys] ? ui.sys : null; const sys = sel ? SYS[sel] : null;
+  // the body scan opens on the system of the most important open follow-up
+  const topSys = (() => { const c = Care.open().find((x) => x.ind); const s0 = c && SYSTEMS.find((x) => x.indicators.includes(c.ind)); return s0 ? s0.id : null; })();
+  const sel = SYS[ui.sys] ? ui.sys : topSys; const sys = sel ? SYS[sel] : null;
   const item = (act, v, ic, label) => `<button class="hl" data-act="${act}" ${v ? `data-v="${v}"` : ''}>${icon(ic)}<span>${label}</span>${icon('next', 'hl-go')}</button>`;
   return `<div class="ov">
     <div class="ov-col">
@@ -320,11 +322,11 @@ function overviewTop() {
         <button class="ov-hr ${lc(hr.level)}" data-act="detail" data-id="hr" aria-label="Heart rate, open trend"><span class="ov-heart">${icon('heart')}</span>
           <span class="ov-n"><b class="num" ${hr.v == null ? '' : `data-count="${hr.v}"`}>${hr.v == null ? '—' : hr.v}</b><small>bpm</small></span>
           <svg class="ecg" viewBox="0 0 170 60" aria-hidden="true"><path d="M0 34h38l8-8 8 8h10l7-26 9 48 8-30 6 8h12l7-14 8 14h41"/></svg></button>
-        <ul class="kv-list">${[['sys', 'Blood pressure', 'drop'], ['spo2', 'Blood oxygen', 'wind'], ['temp', 'Temperature', 'zap'], ['sleep', 'Sleep', 'clock'], ['stress', 'Stress', 'brain']].map(([id, label, ic]) => {
+        <ul class="kv-list">${(() => { const fu = new Set(Care.open().map((c) => c.ind)); return [['sys', 'Blood pressure', 'drop'], ['spo2', 'Blood oxygen', 'wind'], ['temp', 'Temperature', 'zap'], ['sleep', 'Sleep', 'clock'], ['stress', 'Stress', 'brain']].sort((a, b) => fu.has(b[0]) - fu.has(a[0])); })().map(([id, label, ic]) => {
           const st = Engine.status(id); const lvl = st.v == null ? -1 : st.level;
           let val = st.v == null ? '—' : IND[id].type === 'scale' ? esc(Engine.label(IND[id], st.v)) : `${Engine.fmt(IND[id], st.v)}<small> ${IND[id].unit}</small>`;
           if (id === 'sys' && st.v != null) { const d = Engine.status('dia'); val = `${st.v}/${d.v ?? '—'}<small> mmHg</small>`; }
-          return `<li><button class="${lc(lvl)}" data-act="detail" data-id="${id}" aria-label="${esc(label)}, open trend"><span class="kv-ic">${icon(ic)}</span><span class="kv-l">${label}</span><b class="kv-v num">${val}</b><span class="kv-s"><span class="dot"></span>${st.v == null ? 'Not logged' : levelText(lvl)}</span></button></li>`;
+          return `<li><button class="${lc(lvl)}" data-act="detail" data-id="${id}" aria-label="${esc(label)}, open trend"><span class="kv-ic">${icon(ic)}</span><span class="kv-l">${label}</span><b class="kv-v num">${val}</b><span class="kv-s"><span class="dot"></span>${st.v == null ? 'Not logged' : levelText(lvl)}${Care.open().some((c) => c.ind === id) ? ' · follow-up' : ''}</span></button></li>`;
         }).join('')}</ul></section>
     </div>
     <section class="card ov-health"><h2>Health</h2>
@@ -343,8 +345,8 @@ function osdrCard(sel) {
   const meta = (st) => [st.organism, st.tissue, st.kind === 'Spaceflight' && st.mission ? `${st.mission}` : st.kind, st.year].filter(Boolean).map((t) => `<span class="tag sm">${esc(String(t))}</span>`).join('');
   return `<section class="card osdr" aria-label="NASA research on ${esc(SYS[sel].name)}">
     <div class="osdr-h"><div><h2>${icon('rocket')}NASA research on ${esc(SYS[sel].name.toLowerCase())}</h2>
-      <p class="muted small">${r.total} studies in NASA’s Open Science Data Repository${r.humans ? `, ${r.humans} with human data` : ''}. Astronaut and in-vivo studies first.</p></div></div>
-    <ul class="osdr-list">${r.studies.map((st) => `<li><a href="${esc(st.url)}" target="_blank" rel="noopener"><span class="osdr-id">${esc(st.id)}</span><b>${esc(st.title)}</b></a>
+      <p class="muted small">${r.total} studies in NASA’s Open Science Data Repository${r.humans ? `, ${r.humans} with human data` : ''}. The 3 most relevant, astronaut studies first.</p></div></div>
+    <ul class="osdr-list">${r.studies.slice(0, 3).map((st) => `<li><a href="${esc(st.url)}" target="_blank" rel="noopener"><span class="osdr-id">${esc(st.id)}</span><b>${esc(st.title)}</b></a>
       <div class="osdr-meta">${meta(st)}</div>${st.about ? `<p class="muted small">${esc(st.about)}</p>` : ''}</li>`).join('')}</ul>
     <p class="muted small">Source: NASA OSDR Biological Data API · snapshot ${esc(OSDR.snapshot)} · available offline. Opening a study needs a link to Earth.</p>
   </section>`;
@@ -446,21 +448,19 @@ function viewRoutine() {
         return `<li class="${ok ? 'done' : ''}"><button data-act="task" data-id="${t.id}" aria-pressed="${ok}">
           <span class="box">${ok ? icon('check') : ''}</span>
           <span class="t-main"><b>${t.label}</b><small>${detail}</small></span>
-          <span class="t-side">${t.auto ? (ok ? 'Logged' : 'Log now ›') : (ok ? 'Done' : 'Mark done')}<em>+15 XP</em></span></button></li>`;
+          <span class="t-side">${t.auto ? (ok ? 'Logged' : 'Log now ›') : (ok ? 'Done' : 'Mark done')}</span></button></li>`;
       }).join('')}</ul>
-      <p class="muted small">Tasks with “Log now” complete themselves when you record the measurement. A full check-in (vitals + mind) earns a 50 XP bonus and extends your streak.</p>
+      <p class="muted small">Tasks with “Log now” complete themselves when you record the measurement.</p>
     </section>
     <div class="col">
-      <section class="card rank">
-        <h2>${g.rank.name}</h2><p class="sub">Crew rank</p>
-        <div class="meter big xp"><i style="width:${g.pct * 100}%"></i></div>
-        <p class="muted">${g.xp.toLocaleString()} XP${g.next ? ` · ${(g.next.xp - g.xp).toLocaleString()} to ${g.next.name}` : ' · top rank'}</p>
-        <div class="stats"><div><b>${g.streak}</b><span>day streak</span></div><div><b>+${g.todayXp}</b><span>XP today</span></div><div><b>${g.badges.filter((b) => b.got).length}/${g.badges.length}</b><span>patches</span></div></div>
-      </section>
+      ${(() => { const ms = careMilestones(); const open = Care.open().length; const closed = Object.values(Care.all()).filter((c) => c.status === 'discharged').length;
+        let full = 0; for (let d = Math.max(1, state.md - 13); d <= state.md; d++) { const dd = state.days[d]; if (dd && (dd.checkinAt || Engine.checkedIn(dd))) full++; }
+        return `<section class="card rank"><h2>Your health record</h2><p class="sub">How complete it is — a complete record is what lets NovaCare catch problems early</p>
+        <div class="stats"><div><b>${full}/14</b><span>check-ins</span></div><div><b>${open}</b><span>follow-ups</span></div><div><b>${closed}</b><span>discharged</span></div></div></section>
       <section class="card">
-        <div class="card-h"><h2>Mission patches</h2></div>
-        <div class="badges">${g.badges.map((b) => `<div class="badge ${b.got ? 'got' : ''}" title="${esc(b.desc)}"><i>${b.icon}</i><b>${b.name}</b><small>${b.desc}</small></div>`).join('')}</div>
-      </section>
+        <div class="card-h"><h2>Care milestones</h2><span class="muted">${ms.filter((b) => b.got).length} of ${ms.length}</span></div>
+        <div class="badges">${ms.map((b) => `<div class="badge ${b.got ? 'got' : ''}" title="${esc(b.desc)}"><i>${b.icon}</i><b>${b.name}</b><small>${b.desc}</small></div>`).join('')}</div>
+      </section>`; })()}
       <section class="card">
         <div class="card-h"><h2>Last 14 days</h2><span class="muted">routine completed</span></div>
         <div class="strip">${strip}</div>
@@ -470,26 +470,26 @@ function viewRoutine() {
 }
 
 function viewHazards() {
-  const env = Engine.env();
+  const env = Engine.env(); const me = Crew.members()[0]; const dose = Engine.cumulativeDose();
+  const hz = HAZARDS.map((h) => {
+    const st = h.tracks.map((id) => Engine.status(id)); const lv = st.filter((x) => x.level >= 0 && !x.stale).map((x) => x.level);
+    const worst = lv.length ? Math.max(...lv) : -1; const flagged = st.filter((x) => x.level >= 1 && !x.stale).length;
+    return { h, worst, line: worst < 0 ? 'Not measured yet' : flagged ? `${flagged} measurement${flagged > 1 ? 's' : ''} to watch` : 'Everything it tracks is in range' };
+  }).sort((a, b) => b.worst - a.worst);
   return `<section class="card envcard">
-      <div class="card-h"><div><h2>${env.name}</h2><p class="sub">Your environment</p></div><button class="btn ghost" data-act="settings">Change</button></div>
-      <dl class="facts wide">
-        <div><dt>Gravity</dt><dd>${env.gravity}</dd></div>
-        <div><dt>Typical radiation</dt><dd>${env.rad} mSv per day</dd></div>
-        <div><dt>Link to ground</dt><dd>${env.comm}</dd></div>
-        <div><dt>Evacuation</dt><dd>${env.evac}</dd></div>
-        <div><dt>Exercise prescription</dt><dd>${env.exTarget} min per day</dd></div>
-      </dl>
-      <p class="muted">${env.note}</p>
+      <div class="card-h"><div><h2>${env.name}</h2><p class="sub">${esc(env.gravity)} · ${env.rad} mSv a day · ${esc(env.comm)}</p></div><button class="btn ghost sm" data-act="settings">Change</button></div>
+      <p class="muted small">Evacuation: ${esc(String(env.evac).replace(/\.$/, ''))} · Exercise prescription: ${env.exTarget} min a day</p>
     </section>
-    <div class="card-h pad"><div><h2>The five hazards of human spaceflight</h2><p class="muted">NASA's Human Research Program groups the risks to your body and mind into five hazards. Every measurement in NOVACARE exists to catch one of them early.</p></div></div>
-    <div class="grid-haz">${HAZARDS.map((h) => `<article class="card haz">
-      <div class="haz-h"><i>${h.letter}</i><h3>${h.name}</h3></div>
-      <p>${h.text}</p>
-      <p><b>What you can do.</b> ${h.act}</p>
-      <details class="about"><summary>What it can cause</summary><p>${h.risks}</p></details>
-      <p class="hz">NOVACARE tracks: ${h.tracks.map((id) => { const st = Engine.status(id); return `<button class="tag link ${lc(st.level)}" data-act="detail" data-id="${id}">${st.level < 0 ? '○' : LEVELS[st.level].sym} ${IND[id].short}</button>`; }).join(' ')}</p>
-    </article>`).join('')}</div>
+    <section class="card"><div class="card-h"><div><h2>The five hazards of spaceflight</h2><p class="muted small">Open one to see what NovaCare measures to catch it early, and what you can do. Most urgent first.</p></div></div>
+    <div class="acc-list">${hz.map(({ h, worst, line }) => `<details class="acc ${lc(worst)}">
+      <summary><span class="hz-l">${h.letter}</span><span class="acc-t"><b>${h.name}</b><small>${line}</small></span>${pill(worst)}${icon('next', 'acc-go')}</summary>
+      <div class="acc-b">
+        <p>${h.text}</p>
+        ${h.id === 'radiation' ? `<p class="act"><b>Mission dose so far:</b> ${dose.toFixed(0)} of ${CAREER_DOSE_LIMIT} mSv (${Math.round((dose / CAREER_DOSE_LIMIT) * 100)}% of the career limit).</p>` : ''}
+        <h4>What NovaCare measures</h4>${healthCharts(me, h.tracks)}
+        <p class="act"><b>What you can do:</b> ${h.act}</p>
+        <p class="muted small"><b>What it can cause:</b> ${h.risks}</p>
+      </div></details>`).join('')}</div></section>
     <p class="muted small pad">Sources: NASA Human Research Program (five hazards, human system risks, SANS), NASA spaceflight radiation standard (600 mSv career limit), MSL-RAD and Chang'E-4 LND dose-rate measurements.</p>`;
 }
 
@@ -599,7 +599,7 @@ function doneHtml(m) {
   const g = Engine.game(); const score = Engine.readiness(); Care.sync();
   const fresh = Care.open().filter((c) => c.status === 'new'); const follow = Care.open().length - fresh.length; const adv = fresh; const top = fresh[0];
   return `<div class="sheet narrow" role="dialog" aria-modal="true" aria-label="Check-in complete">
-    <header><div><h2>Saved</h2><p class="sub">${m.count} reading${m.count === 1 ? '' : 's'} · +${g.todayXp} XP today${g.streak ? ` · ${g.streak}-day streak` : ''}</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <header><div><h2>Saved</h2><p class="sub">${m.count} reading${m.count === 1 ? '' : 's'} added to your record${g.streak > 1 ? ` · check-in ${g.streak} days running` : ''}</p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
       <div class="done-top">${ring(score)}</div>
       ${(() => { const f = Coach.feedback(); return f ? `<p class="done-win">${icon('check')}${esc(f)}</p>` : ''; })()}
@@ -973,7 +973,7 @@ function syncSave() { const b = $('#save'); if (b && ui.modal) b.disabled = !ste
 function advanceMeasure(m) {
   if (m.i < m.steps.length - 1) { m.i++; renderModal(); return; }
   if (m.guided) { ui.modal = { type: 'done', count: m.count }; render(); }
-  else { ui.modal = null; render(); if (m.count) toast(`Saved · +${m.count * 10} XP`); }
+  else { ui.modal = null; render(); if (m.count) toast(`${m.count} reading${m.count > 1 ? 's' : ''} saved`); }
 }
 
 function download(name, text, mime) {
@@ -1135,7 +1135,7 @@ const actions = {
   status() { ui.modal = { type: 'status', i: 0, ans: {} }; renderModal(); },
   reminders() { ui.modal = { type: 'reminders' }; renderModal(); },
   remlog(d) { const t = TASKS.find((x) => x.id === d.v); if (!t) return; ui.modal = null; if (t.id === 'vitals' || t.id === 'mind') { startCheckin(); return; } openMeasure(CHECKIN_GROUPS.filter((g) => g.some((id) => t.ids.includes(id))), true); },
-  remdone(d) { const t = TASKS.find((x) => x.id === d.v); if (!t) return; Engine.today().tasks[t.id] = true; Engine.save(); toast(`${t.label} done · +15 XP`); if (ui.modal) renderModal(); render(); },
+  remdone(d) { const t = TASKS.find((x) => x.id === d.v); if (!t) return; Engine.today().tasks[t.id] = true; Engine.save(); toast(`${t.label} done`); if (ui.modal) renderModal(); render(); },
   remlater(d) { Reminders.snooze(d.id, 60); toast('Reminder snoozed for an hour'); renderModal(); renderTop(); },
   async remon() { const p = await Reminders.enable(); toast(p === 'granted' ? 'Notifications on — NovaCare will remind you' : 'Notifications were not allowed'); renderModal(); },
   remoff() { Reminders.disable(); toast('Notifications off — reminders stay under the bell'); renderModal(); },
@@ -1249,7 +1249,7 @@ const actions = {
     if (t.id === 'vitals' || t.id === 'mind') { startCheckin(); return; }
     if (t.auto) { openMeasure(CHECKIN_GROUPS.filter((g) => g.some((id) => t.ids.includes(id))), false); return; }
     day.tasks[t.id] = !day.tasks[t.id]; Engine.save(); render();
-    if (day.tasks[t.id]) toast(`${t.label} done · +15 XP`);
+    if (day.tasks[t.id]) toast(`${t.label} done`);
   },
   report() { download(`novacare-report-MD${state.md}.txt`, Engine.report(), 'text/plain'); },
   export() { download(`novacare-data-MD${state.md}.json`, JSON.stringify(state, null, 2), 'application/json'); },
