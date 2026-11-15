@@ -26,7 +26,7 @@ Live at https://novacare.earth (GitHub Pages).
 - **Mission** — *Mission status* (mission day, crew readiness, roster, 7-day log, report export) and *Missions* (your missions, create, join with a code, and **All missions** — every mission people have created, with a Join button).
 - **Analysis** — a verdict per astronaut with reasons, crew-wide patterns, a readiness comparison chart and the full indicator matrix.
 
-People only appear in the missions they created or joined, and the crew is made only of real registered people. Forgot your password? **Forgot password?** on the sign-in screen emails a reset link (in Supabase, Authentication → URL Configuration must list the site URL). Each person can add a profile photo (Settings, or tap the photo in My health).
+People only appear in the missions they created or joined, and the crew is made only of real registered people. Forgot your password? **Forgot password?** on the sign-in screen emails a reset link (in Supabase, Authentication → URL Configuration must list the site URL); on the ship server it asks for the crew reset code instead. Each person can add a profile photo (Settings, or tap the photo in My health).
 
 ## From data to action: recommendations, follow-up and discharge
 
@@ -60,7 +60,30 @@ If nothing in the knowledge base matches, NovaCare answers **"No onboard protoco
 docker compose up -d
 ```
 
-Then open http://localhost:8080. The first start downloads the small model (`qwen2.5:1.5b`) once; after that the stack runs fully offline. Without the `llm` service the app still answers, showing the protocol text directly. The public website (novacare.earth) never calls a model.
+Then open http://localhost:8080. The first start downloads the images and the small model (`qwen2.5:1.5b`) once; after that the stack runs fully offline. Without the `llm` service the app still answers, showing the protocol text directly. The public website (novacare.earth) never calls a model.
+
+The same command also starts the **ship server**, so crew accounts, alerts and the inventory work between devices with no internet (next section).
+
+## Ship server (crew network, no internet)
+
+On the website, crewmates reach each other through Supabase in the cloud. On a spacecraft that would mean one person's emergency never reaches another without a link to Earth. So `docker compose up -d` also runs `ship` (`ship/server.js`): a small crew database on the ship's own network. It serves the same tables and access rules as `supabase/setup.sql` — accounts, `missions`, `mission_directory`, `mission_members`, `crew_status`, `alerts`, `inventory` — and speaks the part of the Supabase API the app uses, so the app's sync code runs unchanged against it.
+
+- **Switch:** `SHIP_SERVER_URL` in `js/config.js`. When set, sign-up, sign-in, sync, crew status, emergency alerts and the shared inventory all go to the ship server, and Supabase is not used. The docker `web` service serves `ship/config.js` (with `SHIP_SERVER_URL: 'ship/'`) in place of `js/config.js`, and nginx forwards `/ship/` to the server — one address and port for everything. The repository's `js/config.js` leaves it empty, so GitHub Pages / novacare.earth keep using Supabase as before.
+- **Accounts live on the ship.** Creating an account and signing in work against the ship server alone: no email confirmation, no first sign-in against the cloud. After one sign-in, a device can still sign in on its own if the ship server is down (same device copy as below).
+- **Forgotten password, no email:** *Forgot password?* opens the ship's reset page, which asks for the **crew reset code**. Whoever runs the terminal reads it with `docker compose logs ship` (or `docker compose exec ship node server.js code`). Choose your own with `SHIP_RESET_CODE=ABCD-1234 docker compose up -d`. A reset signs the person out on every device.
+- **Data:** one SQLite file in the `ship-data` volume. Zero dependencies: Node 22's built-in SQLite. To run it without docker: `node ship/server.js` (port 8787, data in `ship/data/`).
+- **Earth link:** not wired yet. While `SHIP_SERVER_URL` is set, nothing is copied to Supabase; the ship database is the record.
+
+**Try it: two crew members, internet off**
+
+1. On the ship terminal: `docker compose up -d`. Find its address on the crew network (for example `ipconfig getifaddr en0` on a Mac, `hostname -I` on Linux).
+2. Disconnect the internet (keep the local Wi-Fi / network up).
+3. Device A opens `http://<terminal-address>:8080`, **Register**s, then **Mission → Create a mission** and notes the code.
+4. Device B opens the same address, registers, and joins with that code (or from **All missions**). Each now sees the other in the crew roster.
+5. On A, tap **Help → I need help now → Alert the crew now**. Within about 8 seconds B gets the full-screen *"… needs help"* alert. `docker compose logs ship` shows the alert arriving.
+6. On A, **Cancel request**: B's alert clears.
+
+On a crew network the page is plain `http://`, which browsers treat as not secure: the app works, but the service worker (opening with no server at all) and the stronger device copy of the password (PBKDF2) need `https` or `localhost`. Put the terminal behind https on the ship network if that matters.
 
 ## Database setup (Supabase)
 
@@ -83,7 +106,8 @@ Registered people appear in **Authentication → Users** and in the `profiles` t
 ## Structure
 
 - `js/data.js` — indicators, thresholds, guidance text, body systems, hazards, environments
-- `js/config.js` — your Supabase URL and anon key
+- `js/config.js` — the database: `SHIP_SERVER_URL` (ship server) or your Supabase URL and anon key
+- `ship/` — the ship server (`server.js`), its reset page, the nginx config and the ship `config.js` used by `docker-compose.yml`
 - `js/auth.js` — accounts, offline sign-in and cloud sync
 - `js/vendor/supabase.js` — Supabase client, bundled so it loads with no signal
 - `sw.js` — offline cache so the app opens without a connection

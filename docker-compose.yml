@@ -3,7 +3,9 @@
 #   docker compose up -d        → open http://localhost:8080
 #
 # Services
-#   web     the NovaCare app (static files served by nginx)
+#   web     the NovaCare app (static files served by nginx), with the ship server under /ship/
+#   ship    the crew database on the ship's own network (ship/server.js): accounts, missions,
+#           crew status, emergency alerts and the shared inventory between devices. No internet.
 #   llm     a small local language model (Ollama). Wording only: the rules engine decides
 #           medication questions and answers come from the onboard knowledge base (js/kb.js).
 #   llm-pull  downloads the model once, then exits. After that the stack runs fully offline.
@@ -17,6 +19,24 @@ services:
       - "8080:80"
     volumes:
       - ./:/usr/share/nginx/html:ro
+      - ./ship/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ship/config.js:/etc/novacare/config.js:ro   # served as js/config.js: SHIP_SERVER_URL is set
+    depends_on:
+      - ship
+    restart: unless-stopped
+
+  ship:
+    image: node:22.20-alpine     # Node 22.13+ has the built-in SQLite the server uses
+    working_dir: /app
+    command: ["node", "server.js"]
+    environment:
+      - DATA_DIR=/data
+      - SHIP_RESET_CODE=${SHIP_RESET_CODE:-}   # optional: choose the crew password-reset code
+    ports:
+      - "8787:8787"                 # optional direct access; the app uses http://<terminal>:8080/ship/
+    volumes:
+      - ./ship:/app:ro
+      - ship-data:/data
     restart: unless-stopped
 
   llm:
@@ -41,3 +61,4 @@ services:
 
 volumes:
   ollama:
+  ship-data:

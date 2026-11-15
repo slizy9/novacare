@@ -19,10 +19,10 @@ self.addEventListener('notificationclick', (e) => {
   }));
 });
 // app files: network first (fresh when online), cache when there is no signal.
-// Database calls go to another origin and are never cached.
+// Database calls (the cloud, or the ship server under /ship/ on this origin) are never cached.
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (e.request.method !== 'GET' || url.origin !== location.origin || /\/ship\/|\/(rest|auth)\/v1\//.test(url.pathname)) return;
   e.respondWith(
     // 'no-cache': always ask the server whether the file changed, so a new version shows up on the next load
     fetch(e.request, { cache: 'no-cache' }).catch(() => fetch(e.request)).then((res) => {

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NovaCare — Reset password on the ship</title>
+  <style>
+    :root { --bg: #f4f6fb; --card: #fff; --ink: #0f1b3d; --muted: #5b6785; --line: #d6dcea; --accent: #1f6feb; --bad: #c62828; --ok: #1b7f4c; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #070b14; --card: #111a2e; --ink: #e8eefc; --muted: #9aa8c7; --line: #24314f; --accent: #6cc5ff; --bad: #ff8a80; --ok: #3ddc97; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg); color: var(--ink);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; }
+    h1 { font-size: 1.35rem; margin: 0 0 6px; }
+    p { color: var(--muted); margin: 0 0 16px; font-size: .95rem; }
+    label { display: block; font-weight: 600; font-size: .9rem; margin: 12px 0 4px; }
+    input { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; }
+    button { width: 100%; margin-top: 18px; padding: 12px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: default; }
+    .err { color: var(--bad); min-height: 1.4em; margin: 10px 0 0; font-size: .9rem; }
+    .ok { color: var(--ok); }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Reset your password</h1>
+  <p>On the ship there is no email. Ask the crew member who runs the ship terminal for the <b>crew reset code</b>
+     (shown by <code>docker compose logs ship</code>), then choose a new password.</p>
+  <form id="f" novalidate>
+    <label for="email">Email of your account</label>
+    <input id="email" name="email" type="email" autocomplete="username" autocapitalize="off" spellcheck="false" required>
+    <label for="code">Crew reset code</label>
+    <input id="code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH" required>
+    <label for="password">New password</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" placeholder="At least 6 characters" required>
+    <label for="confirm">Confirm new password</label>
+    <input id="confirm" name="confirm" type="password" autocomplete="new-password" required>
+    <p class="err" id="err" role="alert"></p>
+    <button id="go" type="submit">Save new password</button>
+  </form>
+  <p id="done" hidden class="ok"><b>Password changed.</b> <a id="back2" href="../">Back to NovaCare</a> and sign in with it.</p>
+  <p style="margin:16px 0 0"><a id="back" href="../">Back to sign in</a></p>
+</main>
+<script>
+  // The app passes the email and its own address in the fragment (never sent to the server).
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('email')) document.getElementById('email').value = h.get('email');
+  const back = h.get('back');
+  if (back && /^https?:\/\//.test(back)) { document.getElementById('back').href = back; document.getElementById('back2').href = back; }
+  const f = document.getElementById('f'); const err = document.getElementById('err'); const go = document.getElementById('go');
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault(); err.textContent = '';
+    const d = Object.fromEntries(new FormData(f));
+    if (!d.email || !d.code) { err.textContent = 'Enter your email and the crew reset code.'; return; }
+    if (String(d.password).length < 6) { err.textContent = 'Password must be at least 6 characters.'; return; }
+    if (d.password !== d.confirm) { err.textContent = 'Passwords do not match.'; return; }
+    go.disabled = true;
+    try {
+      const r = await fetch('ship/v1/reset', { // relative to this page, so it also works behind the /ship/ proxy
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: d.email, code: d.code, password: d.password }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.message || 'Could not reset the password.');
+      f.hidden = true; document.getElementById('done').hidden = false;
+    } catch (e) { err.textContent = e.message === 'Failed to fetch' ? 'The ship server does not answer. Is it running?' : e.message; }
+    finally { go.disabled = false; }
+  });
+</script>
+</body>
+</html>
