@@ -4,9 +4,25 @@
 
 /* Profile photos: each person uploads their own (state.photo, a small JPEG kept with their data).
    A few crew members have one set for them until they choose their own; 'none' means no photo. */
-const KNOWN_PHOTOS = { 'bruno llobet chanto': 'img/crew/bruno-llobet-chanto.jpg' };
+const KNOWN_PHOTOS = { 'bruno llobet chanto': typeof BRUNO_PHOTO !== 'undefined' ? BRUNO_PHOTO : 'img/crew/bruno-llobet-chanto.jpg' };
 const normName = (n) => String(n || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim().replace(/\s+/g, ' ');
-function photoFor(name, own) { if (own === 'none') return ''; return own || KNOWN_PHOTOS[normName(name)] || ''; }
+/* "Bruno Llobet", "bruno llobet chanto " or "Bruno Llobet-Chanto" all find Bruno's photo. */
+function knownPhotoFor(name) {
+  const n = normName(name).replace(/-/g, ' '); if (!n) return '';
+  if (KNOWN_PHOTOS[n]) return KNOWN_PHOTOS[n];
+  const k = Object.keys(KNOWN_PHOTOS).find((key) => { const w = key.split(' '); return n.startsWith(w.slice(0, 2).join(' ')); });
+  return k ? KNOWN_PHOTOS[k] : '';
+}
+/* A usable own photo is a data URL or an image path; anything else (an old or broken value) falls back. */
+const usablePhoto = (p) => typeof p === 'string' && (/^data:image\/[a-z+]+;base64,[A-Za-z0-9+/=]{100,}$/.test(p) || /^(https?:|img\/)/.test(p));
+function photoFor(name, own) { if (own === 'none') return ''; return (usablePhoto(own) && own) || knownPhotoFor(name) || ''; }
+/* If any profile picture fails to load, show the preset photo for that person, or their initials. */
+document.addEventListener('error', (ev) => {
+  const img = ev.target; if (!img || img.tagName !== 'IMG' || !img.closest('.av, .avatar, .ov-photo, .ph')) return;
+  const fb = img.dataset.fb || knownPhotoFor(img.dataset.name || ''); img.dataset.fb = '';
+  if (fb && img.getAttribute('src') !== fb) { img.src = fb; return; }
+  const box = img.parentElement; img.remove(); if (box) box.classList.remove('ph');
+}, true);
 
 /* Mission NOVA-1 is the shared showcase mission: the guest (Bruno) is on it, registered people can
    join it, and visitors browsing as guest see those real crew members (without their medical data).
@@ -120,6 +136,7 @@ const Crew = (() => {
         predict: typeof Predict !== 'undefined' ? Predict.all().filter((p) => p.level > 0).slice(0, 3).map(({ key, title, level, text, when, now, future }) => ({ key, title, level, text, when, now, future })) : [], // risks ahead
         care: typeof Care !== 'undefined' ? Care.open().map((c) => ({ id: c.id, title: c.title, level: c.level, status: c.status, stage: Care.stage(c).label })) : [],
         compliance: last7.length ? last7.filter((x) => x.checkedIn).length / last7.length : 0,
+        pulse: typeof Mind !== 'undefined' ? Mind.share(s) : null, // crew climate: this week's score only, nothing else from Mind
         updatedAt: meta.updatedAt || new Date().toISOString(), cached: !!meta.cached,
       };
     });
@@ -157,6 +174,7 @@ const Crew = (() => {
     stamp = k;
     const u = Auth.user();
     const me = summarize(state, { id: u.id, name: state.name || u.name, role: u.role, me: true });
+    if (typeof myPhoto === 'function') me.photo = myPhoto(); // same photo as the top bar (the guest is always Bruno)
     // only real people who registered and joined this mission (the simulated demo crew was retired);
     // a guest on the showcase mission sees its real crew, read from the database
     const mates = Auth.cloud() ? cloudMates() : [...localMates(), ...(u.guest && u.crew === SHOWCASE.code ? cloudMates() : [])];
@@ -353,6 +371,6 @@ const EMG = Object.fromEntries(EMERGENCIES.map((e) => [e.id, e]));
 /* "Ask the crew for help" requests travel as alerts too, so every crewmate gets them. */
 const HELP_TYPES = { help: { name: 'Needs help now', urgent: true }, assist: { name: 'Asked for a hand (not urgent)', urgent: false } };
 /* Records that travel with the alerts but are not emergencies. */
-const RECORD_TYPES = { care: 'Discharge', approve: 'Protocol approved', revoke: 'Approval withdrawn' };
+const RECORD_TYPES = { care: 'Discharge', approve: 'Protocol approved', revoke: 'Approval withdrawn', talk: 'Asked for a private conversation' };
 const isRecord = (a) => !!RECORD_TYPES[a.type];
 const alertName = (type) => (HELP_TYPES[type] || EMG[type] || {}).name || type;

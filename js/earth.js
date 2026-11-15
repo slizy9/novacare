@@ -193,7 +193,7 @@ const Earth = (() => {
     const canvases = [...root.querySelectorAll('canvas.earth-spin')]; if (!canvases.length) return;
     canvases.forEach((c) => { const box = c.closest('.auth-earth'); if (box && !box.dataset.stars) { box.dataset.stars = '1'; box.style.setProperty('--stars', `url(${starfield()})`); } });
     if (!tex) {
-      if (!texBusy) { texBusy = true; buildMap().then((m) => { tex = m; ball = ball || buildBall(); texBusy = false; spin(); }); }
+      if (!texBusy) { texBusy = true; buildMap().then((m) => { tex = m; ball = ball || buildBall(); texBusy = false; spin(); cards(); }); }
       return;
     }
     const t0 = performance.now();
@@ -212,6 +212,67 @@ const Earth = (() => {
     };
     if (!raf) { last = 0; draw(t0); }
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && !raf) spin(); });
-  return { paint, spin };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!raf) spin(); if (!craf) cards(); } });
+
+  /* ---------- the Home cards: the same turning planet, seen through every ".space" card ----------
+     One scene (stars, the turning globe, its glow) is drawn per frame; each card copies the part of
+     it that sits behind the card, so together the cards still complete one planet. */
+  const SCENE = 720; let scene = null, globeC = null, starsC = null, glowC = null, craf = 0, clast = 0;
+  function sceneLayers() {
+    if (scene) return;
+    scene = document.createElement('canvas'); scene.width = scene.height = SCENE;
+    globeC = document.createElement('canvas'); globeC.width = globeC.height = S;
+    starsC = document.createElement('canvas'); starsC.width = starsC.height = SCENE;
+    const g = starsC.getContext('2d'); const bg = g.createLinearGradient(0, 0, 0, SCENE); bg.addColorStop(0, '#050a18'); bg.addColorStop(1, '#0a1530');
+    g.fillStyle = bg; g.fillRect(0, 0, SCENE, SCENE);
+    for (let i = 0; i < 520; i++) { const r = hash(i, 7, 3), s = hash(i, 11, 5); g.fillStyle = `rgba(255,255,255,${0.25 + 0.75 * hash(i, 2, 9)})`; const z = s > 0.97 ? 2 : 1; g.fillRect(r * SCENE, s * SCENE, z, z); }
+    glowC = document.createElement('canvas'); glowC.width = glowC.height = SCENE;
+    const gg = glowC.getContext('2d'); const cx = SCENE * 0.5, cy = SCENE * 0.53, R = SCENE * 0.37;
+    const glow = gg.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.13);
+    glow.addColorStop(0, 'rgba(90,160,255,0.45)'); glow.addColorStop(0.4, 'rgba(70,130,255,0.14)'); glow.addColorStop(1, 'rgba(60,110,255,0)');
+    gg.fillStyle = glow; gg.beginPath(); gg.arc(cx, cy, R * 1.13, 0, Math.PI * 2); gg.fill();
+  }
+  let gImg = null;
+  function drawScene(turn) {
+    const gc = globeC.getContext('2d'); if (!gImg) gImg = gc.createImageData(S, S);
+    frame(gImg, turn); gc.putImageData(gImg, 0, 0);
+    const g = scene.getContext('2d'); const cx = SCENE * 0.5, cy = SCENE * 0.53, R = SCENE * 0.37;
+    g.globalCompositeOperation = 'source-over'; g.drawImage(starsC, 0, 0);
+    g.imageSmoothingQuality = 'high'; g.drawImage(globeC, cx - R, cy - R, R * 2, R * 2);
+    g.globalCompositeOperation = 'lighter'; g.drawImage(glowC, 0, 0); g.globalCompositeOperation = 'source-over';
+  }
+  /** Start (or keep) the turning planet behind the Home cards. */
+  function cards() {
+    if (still() || !document.querySelector('.space')) return; // reduced motion: the still picture from paint() stays
+    if (!tex) { if (!texBusy) { texBusy = true; buildMap().then((m) => { tex = m; ball = ball || buildBall(); texBusy = false; spin(); cards(); }); } return; }
+    sceneLayers();
+    const draw = (now) => {
+      const els = [...document.querySelectorAll('.space')];
+      if (!els.length) { craf = 0; return; } // left Home: stop
+      if (now - clast >= 40 || !clast) { // about 25 frames a second: it is a background
+        const rs = els.map((el) => el.getBoundingClientRect());
+        const seen = rs.some((r) => r.bottom > 0 && r.top < innerHeight && r.width > 0);
+        if (seen) {
+          clast = now; drawScene((now / 90000) % 1); // one full turn every 90 seconds, like the sign-in screen
+          const left = Math.min(...rs.map((r) => r.left)), top = Math.min(...rs.map((r) => r.top));
+          const w = Math.max(...rs.map((r) => r.right)) - left, h = Math.max(...rs.map((r) => r.bottom)) - top;
+          const s = Math.max(w, h), ox = left - (s - w) / 2, oy = top - (s - h) / 2, k = SCENE / s;
+          const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+          els.forEach((el, i) => {
+            let c = el.querySelector(':scope > canvas.space-bg');
+            if (!c) { c = document.createElement('canvas'); c.className = 'space-bg'; c.setAttribute('aria-hidden', 'true'); el.prepend(c); }
+            const r = rs[i]; const cw = Math.max(1, Math.round(r.width * dpr)), ch = Math.max(1, Math.round(r.height * dpr));
+            if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
+            const g = c.getContext('2d');
+            g.drawImage(scene, (r.left - ox) * k, (r.top - oy) * k, r.width * k, r.height * k, 0, 0, cw, ch);
+            g.fillStyle = 'rgba(6,12,30,0.6)'; g.fillRect(0, 0, cw, ch); // keep the text readable
+            c.classList.add('on');
+          });
+        }
+      }
+      if (!document.hidden) craf = requestAnimationFrame(draw); else craf = 0;
+    };
+    if (!craf) { clast = 0; craf = requestAnimationFrame(draw); }
+  }
+  return { paint, spin, cards };
 })();

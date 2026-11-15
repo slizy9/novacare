@@ -28,6 +28,10 @@ const MissionLog = (() => {
     });
     // alerts: raised and resolved
     Crew.alerts().forEach((a) => {
+      if (a.type === 'talk') { // a private request: only the person and the Crew Medical Officer see it
+        const u = Auth.user(); if (!u || (a.fromId !== u.id && u.role !== 'Crew Medical Officer')) return;
+        out.push({ at: a.createdAt, md: a.md, kind: 'health', who: a.fromName, text: `${a.fromName} asked the Crew Medical Officer for a private conversation`, level: 0 }); return;
+      }
       if (isRecord(a)) { // approvals and discharges signed by the Crew Medical Officer
         const [id, src] = String(a.note || '').split('|');
         out.push({ at: a.createdAt, md: a.md, kind: 'health', who: a.fromName, text: a.type === 'care' ? `Discharge signed for ${a.aboutName}` : a.type === 'approve' ? `Protocol approved: ${id} (${Protocols.nameOf(id)}) — checked against ${src}` : `Approval withdrawn: ${id}`, level: 0 });
@@ -60,7 +64,7 @@ const MissionLog = (() => {
     state.log = [...notes(), n].slice(-500); Engine.save(); return n;
   }
   function toText(list) {
-    return list.map((e) => `[MD ${e.md ?? '?'} ${new Date(e.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}] ${e.kind.toUpperCase().padEnd(6)} ${e.who ? e.who + ': ' : ''}${e.text}`).join('\n');
+    return list.map((e) => `[MD ${e.md ?? '?'} ${new Date(e.at).toLocaleString(I18N.locale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}] ${e.kind.toUpperCase().padEnd(6)} ${e.who ? e.who + ': ' : ''}${e.text}`).join('\n');
   }
   return { entries, add, toText };
 })();
@@ -68,7 +72,7 @@ const MissionLog = (() => {
 function viewLog() {
   const f = LOG_KINDS[ui.logFilter] ? ui.logFilter : 'all';
   const all = MissionLog.entries(); const list = f === 'all' ? all : all.filter((e) => e.kind === f);
-  const t = (iso) => new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const t = (iso) => new Date(iso).toLocaleTimeString(I18N.locale(), { hour: '2-digit', minute: '2-digit', hour12: false });
   const tag = { health: 'HEALTH', alert: 'ALERT', supply: 'SUPPLY', note: 'NOTE' };
   let lastMd = null;
   const lines = list.map((e) => {

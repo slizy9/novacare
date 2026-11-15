@@ -16,13 +16,13 @@ function timeAgo(iso) {
 }
 
 function pageHead(title, desc, actions = '') {
-  if (!/[<&]/.test(title)) title = title.replace(/(\S+)$/, '<em>$1</em>'); // last word in italic serif
+  if (!/[<&]/.test(title)) title = I18N.t(title).replace(/(\S+)$/, '<em>$1</em>'); // last word in italic serif (translated whole, then split)
   return `<header class="page-h"><div><h1>${SWOOSH}${title}</h1>${desc ? `<p>${desc}</p>` : ''}</div>${actions ? `<div class="page-a">${actions}</div>` : ''}</header>`;
 }
 
 function avatar(m, i, size = '') {
-  const ph = m.photo || photoFor(m.name, null);
-  return `<span class="av ${size} ${ph ? 'ph' : ''}" style="--av:${crewColor(i)}" aria-hidden="true">${ph ? `<img src="${esc(ph)}" alt="" loading="lazy">` : initials(m.name)}</span>`;
+  const ph = photoFor(m.name, m.photo);
+  return `<span class="av ${size} ${ph ? 'ph' : ''}" style="--av:${crewColor(i)}" aria-hidden="true">${ph ? `<img src="${esc(ph)}" alt="" data-name="${esc(m.name)}">` : initials(m.name)}</span>`;
 }
 
 function verdictPill(v) {

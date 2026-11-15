@@ -190,15 +190,16 @@ const Voice = (() => {
   function listen(onText, onEnd) {
     if (!R) return false;
     try { if (rec) rec.abort(); } catch (e) { /* ignore */ }
-    rec = new R(); rec.lang = navigator.language || 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1;
+    rec = new R(); rec.lang = I18N.voice(); rec.interimResults = false; rec.maxAlternatives = 1;
     rec.onresult = (e) => onText(e.results[0][0].transcript);
     rec.onerror = () => onEnd && onEnd(); rec.onend = () => { rec = null; if (onEnd) onEnd(); };
     rec.start(); return true;
   }
   function stop() { try { if (rec) rec.stop(); } catch (e) { /* ignore */ } }
-  function speak(text) {
+  function speak(text, L = I18N.lang()) {
     if (!('speechSynthesis' in window)) return;
-    speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; u.rate = 1.02; speechSynthesis.speak(u);
+    if (L === I18N.lang() && L !== 'en') text = I18N.t(text, L); // app messages are written in English
+    speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = I18N.voice(L); u.rate = 1.02; speechSynthesis.speak(u);
   }
   return { ok: !!R, listen, stop, speak, listening: () => !!rec };
 })();
@@ -206,20 +207,20 @@ const Voice = (() => {
 /* ---------- Questions: answers from your data, the medical profile and the inventory ---------- */
 const Assistant = (() => {
   const IND_WORDS = [
-    [['sys', 'dia'], /blood pressure|\bbp\b|presion|tension arterial/],
-    [['hr'], /heart rate|pulse|pulso|frecuencia cardiaca|ritmo cardiaco|heartbeat|latidos/],
-    [['spo2'], /oxygen|spo2|saturation|saturacion|oxigeno/],
-    [['temp'], /temperature|fever|temperatura|fiebre/],
-    [['glu'], /glucose|blood sugar|glucosa|azucar/],
-    [['sleep'], /sleep|slept|dormi|sueno|dormir|insomni/],
-    [['mood'], /\bmood\b|animo|sad\b|triste|depress/],
-    [['stress'], /stress|estres|anxious|ansios/],
-    [['water'], /water|hydrat|drink|agua|hidrat|liquid/],
-    [['exercise'], /exercise|workout|training|ejercicio|entren/],
-    [['mass'], /weight|body mass|\bpeso\b|masa corporal/],
-    [['vision'], /vision|eyes?\b|eyesight|blurr|ojos?\b|vista|borros/],
-    [['rad'], /radiation|dose|dosis|radiacion|msv/],
-    [['co2'], /co2|carbon dioxide|cabin air|aire de la cabina|dioxido/],
+    [['sys', 'dia'], /blood pressure|\bbp\b|presion|tension arterial|pressao|pression|tension/],
+    [['hr'], /heart rate|pulse|pulso|frecuencia cardiaca|ritmo cardiaco|heartbeat|latidos|frequencia cardiaca|batimento|frequence cardiaque|rythme cardiaque|pouls/],
+    [['spo2'], /oxygen|spo2|saturation|saturacion|oxigeno|oxigenio|saturacao|oxygene/],
+    [['temp'], /temperature|fever|temperatura|fiebre|febre|fievre/],
+    [['glu'], /glucose|blood sugar|glucosa|azucar|glicose|acucar|glycemie|sucre/],
+    [['sleep'], /sleep|slept|dormi|sueno|dormir|insomni|sono|sommeil/],
+    [['mood'], /\bmood\b|animo|sad\b|triste|depress|humor|humeur/],
+    [['stress'], /stress|estres|anxious|ansios|anxieux/],
+    [['water'], /water|hydrat|drink|agua|hidrat|liquid|\beau\b|boire|beber/],
+    [['exercise'], /exercise|workout|training|ejercicio|entren|exercicio|treino|exercice|entrainement/],
+    [['mass'], /weight|body mass|\bpeso\b|masa corporal|massa corporal|\bpoids\b|masse corporelle/],
+    [['vision'], /vision|eyes?\b|eyesight|blurr|ojos?\b|vista|borros|visao|olhos?\b|\byeux\b|\bvue\b|floue?/],
+    [['rad'], /radiation|dose|dosis|radiacion|msv|radiacao|rayonnement/],
+    [['co2'], /co2|carbon dioxide|cabin air|aire de la cabina|dioxido|ar da cabine|air de la cabine|dioxyde/],
   ];
   const SYS_WORDS = [['musculo', /bone|muscle|hueso|muscul/], ['heart', /\bheart\b|cardio|corazon|circulat/], ['brain', /brain|mental|mind|cerebro|mente/],
     ['lungs', /lung|pulmon|breath|respir/], ['metabolic', /metabol|nutrition|kidney|food|nutric|rinon|comida/], ['immune', /immun|inmun|infection|infecc/]];
@@ -231,7 +232,7 @@ const Assistant = (() => {
     [/back pain|backache|dolor de espalda|espalda/, 'Back pain', ['exercise'], 'Your spine lengthens in microgravity and back pain is very common early on. Gentle stretching and the fetal position help.', 'Pain with numbness, weakness or trouble controlling bladder or bowel is urgent.'],
     [/pain|hurt|ache|dolor|duele/, 'Pain', ['hr', 'sys'], 'Rest the area and note where it hurts and how bad it is (0–10).', 'Severe or worsening pain, chest pain or pain after an injury needs the Crew Medical Officer.'],
   ];
-  const RED_FLAG = /can'?t breathe|cannot breathe|not breathing|chest pain|unconscious|seizure|severe bleeding|bleeding a lot|anaphyla|no puedo respirar|no respira|dolor (de|en el) pecho|inconscien|convuls|sangra mucho|desmay/;
+  const RED_FLAG = /can'?t breathe|cannot breathe|not breathing|chest pain|unconscious|seizure|severe bleeding|bleeding a lot|anaphyla|no puedo respirar|no respira|dolor (de|en el) pecho|inconscien|convuls|sangra mucho|desmay|nao (consigo|consegue) respirar|nao respira|dor no peito|desmai|sangrando muito|je ne peux pas respirer|ne respire (pas|plus)|douleur (a la|dans la) poitrine|inconscient|convulsion|saigne beaucoup|evanoui/;
   const lvlWord = (l) => (l < 0 ? 'no data' : LEVELS[l].name.toLowerCase());
 
   function indicatorAnswer(ids, person) {
@@ -281,13 +282,14 @@ const Assistant = (() => {
   /** Answer from the onboard knowledge base: the best protocol, its steps, when to escalate, and its sources. */
   function kbAnswer(hits, person) {
     const e = hits[0].e; const also = hits.slice(1).filter((h) => h.s > hits[0].s * 0.6).map((h) => h.e);
-    const srcs = e.src.map((k) => SRC[k]).filter(Boolean);
-    const html = `${e.fallback ? `<p class="muted small">${tr('No specific onboard protocol matched your question — here is the general approach.', 'Ningún protocolo específico coincide con tu pregunta: este es el enfoque general.')}</p>` : ''}<p class="kb-h"><span class="kb-cat ${e.cat}">${{ medical: 'Medical', wellbeing: 'Wellbeing', ship: 'Ship' }[e.cat]}</span><b>${esc(e.title)}</b></p>
-      <p>${esc(e.a)}</p><ol>${e.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
-      <p class="l2"><b>${tr('Escalate', 'Escalar')}:</b> ${esc(e.esc)}</p>
-      ${also.length ? `<p class="muted small">${tr('Related', 'Relacionado')}: ${also.map((x) => esc(x.title)).join(' · ')}</p>` : ''}
-      <p class="src">${icon('shield')}<span>${tr('Source: onboard protocol', 'Fuente: protocolo a bordo')} <code>KB-${e.id}</code> (${tr('knowledge base', 'base de conocimiento')} v${KB_VERSION}), ${esc(Protocols.text('KB-' + e.id))}${ANSWER_LANG === 'es' ? ' · texto del protocolo en inglés' : ''}${srcs.length ? ' · ' + srcs.map((x) => `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(' · ') : ''}</span></p>`;
-    return { html, say: `${e.title}. ${e.a} ${e.steps[0]} ${e.esc}`, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : e.id === 'GEN-01' && person.me ? { label: tr('Record this symptom', 'Registrar este síntoma'), act: 'status' } : null, kb: hits.map((h) => h.e) };
+    const srcs = e.src.map((k) => SRC[k]).filter(Boolean); const L = ANSWER_LANG; const x = I18N.kb(e, L);
+    const english = !x.translated ? I18N.t(' · protocol text in English', L) : '';
+    const html = `${e.fallback ? `<p class="muted small">${tr('No specific onboard protocol matched your question — here is the general approach.', 'Ningún protocolo específico coincide con tu pregunta: este es el enfoque general.')}</p>` : ''}<p class="kb-h"><span class="kb-cat ${e.cat}">${{ medical: 'Medical', wellbeing: 'Wellbeing', ship: 'Ship' }[e.cat]}</span><b translate="no">${esc(x.title)}</b></p>
+      <div translate="no"><p>${esc(x.a)}</p><ol>${x.steps.map((st) => `<li>${esc(st)}</li>`).join('')}</ol></div>
+      <p class="l2"><b>${tr('Escalate', 'Cuándo avisar')}:</b> <span translate="no">${esc(x.esc)}</span></p>
+      ${also.length ? `<p class="muted small">${tr('Related', 'Relacionado')}: <span translate="no">${also.map((o) => esc(I18N.kb(o, L).title)).join(' · ')}</span></p>` : ''}
+      <p class="src">${icon('shield')}<span><span>${tr('Source: onboard protocol', 'Fuente: protocolo a bordo')}</span> <code>KB-${e.id}</code> (<span>${tr('knowledge base', 'base de conocimiento')}</span> v${KB_VERSION}), <span>${esc(Protocols.text('KB-' + e.id))}</span>${english ? `<span>${esc(english)}</span>` : ''}${srcs.length ? ' · ' + srcs.map((s2) => `<a href="${s2.url}" target="_blank" rel="noopener" translate="no">${esc(s2.label)}</a>`).join(' · ') : ''}</span></p>`;
+    return { html, say: `${x.title}. ${x.a} ${x.steps[0]} ${x.esc}`, sayDone: true, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : e.cat === 'wellbeing' && person.me ? { label: 'Open Mind support', act: 'mindgo' } : e.id === 'GEN-01' && person.me ? { label: tr('Record this symptom', 'Registrar este síntoma'), act: 'status' } : null, kb: hits.map((h) => h.e) };
   }
 
   function predictAnswer(person) {
@@ -352,9 +354,17 @@ const Assistant = (() => {
 
   /** Answer a question. ctx.person = whose health it is about (default: you); ctx.emg = open emergency protocol. */
   /** Spanish if the question reads as Spanish (accents, ¿ or common words); English otherwise. */
-  const isEs = (q) => /[¿¡ñ]|[áéíóú]/i.test(q) || /\b(puedo|tengo|tomar|dolor|duele|cabeza|estoy|como|cual|tenemos|hay|siento|mareo|fiebre|para|pastilla)\b/.test(fold(q));
+  /* The answer is written in the language of the question (English, Spanish, Portuguese or French);
+     a question too short to tell is answered in the app language. */
   function answer(q, ctx = {}) {
-    ANSWER_LANG = isEs(q) ? 'es' : 'en';
+    const L = I18N.detect(q); ANSWER_LANG = L;
+    const r = answerIn(q, ctx);
+    r.lang = L; r.html = I18N.html(r.html, L);
+    if (r.say && !r.sayDone) r.say = I18N.t(r.say, L);
+    if (r.act && r.act.label) r.act.label = I18N.t(r.act.label, L);
+    return r;
+  }
+  function answerIn(q, ctx) {
     const t = fold(q).trim();
     // a question can be about a crewmate by name ("Can I give Mei amoxicillin?")
     const named = !ctx.person && Crew.members().slice(1).find((m) => new RegExp('\\b' + fold(m.name.split(' ')[0]) + '\\b').test(t));
@@ -369,23 +379,24 @@ const Assistant = (() => {
     if (drug) { // the medicine is decided by the rules; a symptom in the same question gets its protocol too
       const sym = KBSearch.search(t, 3).map((h) => h.e).find((e) => e.cat === 'medical' && e.id !== 'MED-18');
       if (sym) {
-        drug.html += `<div class="rule ok"><p class="rule-h">${icon('care')}${tr(`About the ${esc(sym.title.toLowerCase())}`, `Sobre el síntoma: ${esc(sym.title.toLowerCase())}`)}</p>
-          <ol>${sym.steps.slice(0, 3).map((x) => `<li>${esc(x)}</li>`).join('')}</ol><p class="l2"><b>${tr('Escalate', 'Escalar')}:</b> ${esc(sym.esc)}</p>
-          <p class="src">${icon('shield')}<span>${tr('Onboard protocol', 'Protocolo a bordo')} <code>KB-${sym.id}</code>, ${esc(Protocols.text('KB-' + sym.id))}${ANSWER_LANG === 'es' ? ' · texto del protocolo en inglés' : ''}</span></p></div>`;
+        const sx = I18N.kb(sym, ANSWER_LANG);
+        drug.html += `<div class="rule ok"><p class="rule-h">${icon('care')}${tr('About the symptom', 'Sobre el síntoma')}: <span translate="no">${esc(sx.title.toLowerCase())}</span></p>
+          <ol translate="no">${sx.steps.slice(0, 3).map((x) => `<li>${esc(x)}</li>`).join('')}</ol><p class="l2"><b>${tr('Escalate', 'Cuándo avisar')}:</b> <span translate="no">${esc(sx.esc)}</span></p>
+          <p class="src">${icon('shield')}<span><span>${tr('Onboard protocol', 'Protocolo a bordo')}</span> <code>KB-${sym.id}</code>, <span>${esc(Protocols.text('KB-' + sym.id))}</span>${sx.translated ? '' : `<span>${esc(I18N.t(' · protocol text in English', ANSWER_LANG))}</span>`}</span></p></div>`;
         drug.act = { label: tr('Record this symptom', 'Registrar este síntoma'), act: 'status' };
       }
       return drug;
     }
-    if (/allerg|alerg|blood type|tipo de sangre|grupo sangu|medical profile|perfil medico|my conditions|mis condiciones|what medication do|que medicamentos tom/.test(t)) return profileAnswer(person);
-    if (ctx.emg && /what (do|should)|que (hago|hacer|le doy|doy)|medic|medicine|give|dar|pill|pastill|treat|tratar|help|ayud/.test(t)) return emergencyAdvice(ctx.emg, person);
-    if (/do we have|is there any|are there any|have we got|\btenemos\b|nos queda|\bhay (algun|alguna|mas|suficiente|epinefrina|oxigeno)|inventory|inventario|on board|a bordo|in stock|supplies|suministro/.test(t)) return inventoryAnswer(t);
+    if (/allerg|alerg|blood type|tipo de sangre|grupo sangu|medical profile|perfil medico|my conditions|mis condiciones|what medication do|que medicamentos tom|alergi|tipo sangui|perfil medico|minhas condic|groupe sangu|profil medical|mes allergies/.test(t)) return profileAnswer(person);
+    if (ctx.emg && /what (do|should)|que (hago|hacer|le doy|doy)|medic|medicine|give|dar|pill|pastill|treat|tratar|help|ayud|o que (faco|dou)|ajud|remedio|que (dois-je|faire)|donner|medicament|aide/.test(t)) return emergencyAdvice(ctx.emg, person);
+    if (/do we have|is there any|are there any|have we got|\btenemos\b|nos queda|\bhay (algun|alguna|mas|suficiente|epinefrina|oxigeno)|inventory|inventario|on board|a bordo|in stock|supplies|suministro|\btemos\b|tem (algum|alguma|oxigenio|epinefrina)|inventario|estoque|a bordo|avons-nous|y a-t-il|inventaire|en stock/.test(t)) return inventoryAnswer(t);
     // 2) your own data: readings and status
-    const aboutMine = /\bmy\b|\bmi\b|\bmis\b|is (his|her|their)|how is|how are|como esta|como estan|what is my|cual es mi|level|nivel/.test(t);
+    const aboutMine = /\bmy\b|\bmi\b|\bmis\b|is (his|her|their)|how is|how are|como esta|como estan|what is my|cual es mi|level|nivel|\bminha\b|\bmeu\b|\bmeus\b|\bminhas\b|como esta|qual e|\bmon\b|\bma\b|\bmes\b|comment (va|est)|quel est|niveau/.test(t);
     const ind = IND_WORDS.find(([, rx]) => rx.test(t));
     if (ind && aboutMine) return indicatorAnswer(ind[0], person);
-    if (/risk|riesgo|predict|predic|forecast|future|futuro|going to happen|va a pasar|ahead/.test(t)) return predictAnswer(person);
-    if (/how am i|como estoy|my status|mi estado|readiness|summary|resumen|how is my health|como esta mi salud/.test(t)) return statusAnswer(person);
-    if (/\btoday\b|\bhoy\b|routine|rutina|\bdue\b|pending|pendiente|check.?in|what should i do today|que debo hacer hoy|que tengo que hacer/.test(t)) return person.me ? todayAnswer() : statusAnswer(person);
+    if (/risk|riesgo|predict|predic|forecast|future|futuro|going to happen|va a pasar|ahead|risco|previs|futuro|vai acontecer|risque|prevision|avenir|va arriver/.test(t)) return predictAnswer(person);
+    if (/how am i|como estoy|my status|mi estado|readiness|summary|resumen|how is my health|como esta mi salud|como estou|meu estado|minha saude|prontidao|resumo|comment je vais|comment vais-je|mon etat|ma sante|aptitude|resume/.test(t)) return statusAnswer(person);
+    if (/\btoday\b|\bhoy\b|routine|rutina|\bdue\b|pending|pendiente|check.?in|what should i do today|que debo hacer hoy|que tengo que hacer|\bhoje\b|pendente|o que (devo|tenho que) fazer|aujourd|en attente|que dois-je faire/.test(t)) return person.me ? todayAnswer() : statusAnswer(person);
     // 3) onboard knowledge base: medical, wellbeing and ship protocols, searched on the device
     const hits = KBSearch.search(t);
     if (hits.length) return kbAnswer(hits, person);
@@ -401,8 +412,8 @@ const Assistant = (() => {
     return noProtocol();
   }
   /* Body, pain or illness words → the general symptom approach (GEN-01); feelings → GEN-02. */
-  const BODY_RX = /pain|hurt|ache|sore|swell|symptom|sick|\bill\b|disease|illness|itch|bleed|injur|lump|rash|fever|infect|cough|numb|\bweak|medical|health|body|head|\beyes?\b|\bears?\b|nose|mouth|throat|neck|shoulder|\barm|elbow|hand|finger|chest|back|stomach|belly|\bhip|\bleg|knee|\bfoot|feet|\btoe|skin|dolor|duel|molest|sintom|enferm|hinch|picaz|pica\b|sangr|herid|lesion|infecc|grano|bulto|fiebre|\btos\b|salud|cuerpo|malestar|cabeza|\bojos?\b|oido|oreja|nariz|boca|garganta|cuello|hombro|brazo|codo|\bmanos?\b|dedo|pecho|espalda|estomago|panza|barriga|cadera|pierna|rodilla|\bpies?\b|\bpiel\b|lengua|labio|muela|diente|una\b.*(rara|extrana)/;
-  const MIND_RX = /feel|felt|emotion|mood|\bmind|mental|psych|worr|scared|afraid|upset|\bcry|lonely|stress|nervous|sad|angry|happy|siento|sentir|senti|emocion|animo|\bmente|psicolog|preocup|miedo|asust|llor|angust|estres|nervios|triste|enojad|feliz|me pasa/;
+  const BODY_RX = /dor\b|doi\b|doendo|dolorid|barriga|cabeca|perna|braco|joelho|garganta|sintoma|doente|douleur|j ai mal|j'ai mal|\bmal (a|au|aux)\b|ventre|jambe|genou|gorge|symptome|malade|pain|hurt|ache|sore|swell|symptom|sick|\bill\b|disease|illness|itch|bleed|injur|lump|rash|fever|infect|cough|numb|\bweak|medical|health|body|head|\beyes?\b|\bears?\b|nose|mouth|throat|neck|shoulder|\barm|elbow|hand|finger|chest|back|stomach|belly|\bhip|\bleg|knee|\bfoot|feet|\btoe|skin|dolor|duel|molest|sintom|enferm|hinch|picaz|pica\b|sangr|herid|lesion|infecc|grano|bulto|fiebre|\btos\b|salud|cuerpo|malestar|cabeza|\bojos?\b|oido|oreja|nariz|boca|garganta|cuello|hombro|brazo|codo|\bmanos?\b|dedo|pecho|espalda|estomago|panza|barriga|cadera|pierna|rodilla|\bpies?\b|\bpiel\b|lengua|labio|muela|diente|una\b.*(rara|extrana)/;
+  const MIND_RX = /sinto|sentindo|tristeza|ansios|medo|preocupad|chorar|je me sens|sentiment|triste|angoiss|peur|inquiet|pleur|stresse|feel|felt|emotion|mood|\bmind|mental|psych|worr|scared|afraid|upset|\bcry|lonely|stress|nervous|sad|angry|happy|siento|sentir|senti|emocion|animo|\bmente|psicolog|preocup|miedo|asust|llor|angust|estres|nervios|triste|enojad|feliz|me pasa/;
   function generalFallback(t) {
     if (BODY_RX.test(t)) return KBI['GEN-01'];
     if (MIND_RX.test(t)) return KBI['GEN-02'];
@@ -449,7 +460,7 @@ function askHtml(m) {
     <header><div><h2>${icon('chat')}Questions</h2><p class="sub">Health, emotional wellbeing or ship problems — by text${Voice.ok ? ' or voice' : ''}. No link to Earth needed.</p>
       <p class="engines"><span>${icon('check')}Rules engine v${RULES_VERSION.split(' ')[0]}</span><span>${icon('file')}Knowledge base v${KB_VERSION.split(' ')[0]} · ${KB.length} protocols</span><span class="${LocalLLM.ready() ? 'on' : ''}">${icon('chat')}Local model ${LocalLLM.ready() ? LocalLLM.model : 'off'}</span></p></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
-      <div class="chat" id="chat">${chat.length ? chat.map((x) => `<div class="q">${esc(x.q)}</div><div class="a">${x.a.llm ? llmHtml(x.a) : x.a.html}${x.a.thinking ? `<p class="muted small">${icon('refresh')}Wording with the local model…</p>` : ''}${x.a.act ? `<button class="btn ghost sm" data-act="${x.a.act.act}" ${x.a.act.id ? `data-id="${esc(x.a.act.id)}"` : ''} ${x.a.act.v ? `data-v="${x.a.act.v}"` : ''} ${x.a.act.guess ? `data-guess="${x.a.act.guess}"` : ''}>${esc(x.a.act.label)}</button>` : ''}</div>`).join('')
+      <div class="chat" id="chat">${chat.length ? chat.map((x) => `<div class="q" translate="no">${esc(x.q)}</div><div class="a" translate="no" lang="${x.a.lang || 'en'}">${x.a.llm ? llmHtml(x.a) : x.a.html}${x.a.thinking ? `<p class="muted small">${icon('refresh')}${esc(I18N.t('Wording with the local model…', x.a.lang))}</p>` : ''}${x.a.act ? `<button class="btn ghost sm" data-act="${x.a.act.act}" ${x.a.act.id ? `data-id="${esc(x.a.act.id)}"` : ''} ${x.a.act.v ? `data-v="${x.a.act.v}"` : ''} ${x.a.act.guess ? `data-guess="${x.a.act.guess}"` : ''}>${esc(x.a.act.label)}</button>` : ''}</div>`).join('')
         : '<p class="muted small">Try one of these, or ask your own question:</p>'}</div>
       <div class="chips ask-sug">${Assistant.SUGGEST.map((s) => `<button data-act="askq" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
       <form id="ask-form" class="ask-row"><input id="ask-in" name="q" class="text" type="text" maxlength="300" autocomplete="off" placeholder="${m.listening ? 'Listening…' : 'Ask a question'}">${micBtn('ask-in')}<button class="btn primary" type="submit">${icon('next')}<span class="vh">Ask</span></button></form>
@@ -482,7 +493,7 @@ function emgProfileHtml(m) {
 function emgAskHtml(md) {
   const chat = md.ask || [];
   return `<section class="emg-ask"><h3>${icon('chat')}Ask what to do</h3>
-    ${chat.map((x) => `<div class="q">${esc(x.q)}</div><div class="a">${x.a.html}</div>`).join('')}
+    ${chat.map((x) => `<div class="q" translate="no">${esc(x.q)}</div><div class="a" translate="no" lang="${x.a.lang || 'en'}">${x.a.html}</div>`).join('')}
     ${chat.length ? '' : `<div class="chips ask-sug">${Assistant.SUGGEST_EMG.map((s) => `<button data-act="emgq" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>`}
     <form id="emg-ask-form" class="ask-row"><input id="emg-ask-in" name="q" class="text" type="text" maxlength="300" autocomplete="off" placeholder="e.g. What medicine can I give?">${micBtn('emg-ask-in')}<button class="btn sos" type="submit">${icon('next')}<span class="vh">Ask</span></button></form>
   </section>`;
@@ -492,5 +503,5 @@ function emgAskHtml(md) {
 function llmHtml(a) {
   const txt = esc(a.llm).replace(/\[(KB-[A-Z]+-\d+)\]/g, '<code>$1</code>').replace(/\n+/g, '<br>');
   const src = (a.html.match(/<p class="src">[\s\S]*?<\/p>/) || [''])[0];
-  return `<p>${txt}</p>${src}<p class="engine">${icon('chat')}Worded by the local model (${esc(LocalLLM.model)}) from the protocol above — it cannot add facts or doses.</p>`;
+  return `<p>${txt}</p>${src}<p class="engine">${icon('chat')}${esc(I18N.t(`Worded by the local model (${LocalLLM.model}) from the protocol above — it cannot add facts or doses.`, a.lang))}</p>`;
 }

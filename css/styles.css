@@ -1300,7 +1300,7 @@ h1 em { color: var(--sand-ink); }
 /* surfaces with depth */
 body { background: var(--bg); }
 .card, .tile, .hl, .mcard, .jcard, .kpi, .crew-card, .vital { border-radius: var(--r); border: 1px solid var(--line); box-shadow: var(--sh-1); transition: box-shadow var(--t) var(--ease), transform var(--t) var(--ease), border-color var(--t-fast); }
-.card:hover, .vital:hover, .crew-card:hover, .mcard:hover { box-shadow: var(--sh-2); transform: translateY(-1px); }
+.card:hover, .vital:hover, .crew-card:hover, .mcard:hover { box-shadow: var(--sh-2); }
 .hero:hover, .lobby-hero:hover, .today:hover, .card.med:hover { transform: none; }
 .sheet { border-radius: 24px; box-shadow: var(--sh-3); }
 
@@ -1852,3 +1852,148 @@ body.lock #sos-fab { display: none; }
 @media (max-width: 760px) { .auth-photo.auth-earth { height: 210px; } }
 @media (max-width: 560px) { .auth-photo.auth-earth { height: 170px; max-height: none; } }
 @media (prefers-reduced-motion: reduce) { .earth-spin { transition: none; } }
+
+/* language menu (top bar and sign-in) */
+.lang-pick { position: relative; display: inline-flex; align-items: center; }
+.lang-pick select { appearance: none; -webkit-appearance: none; font: 600 12.5px/1 var(--sans, inherit); color: var(--ink); background: var(--surface, #fff) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5'/%3E%3C/svg%3E") right 10px center no-repeat;
+  border: 1px solid var(--line, #ddd); border-radius: 999px; padding: 8px 26px 8px 12px; min-height: 36px; cursor: pointer; }
+.lang-pick select:focus-visible { outline: 2px solid var(--brand, #0f1b3d); outline-offset: 2px; }
+body.signed-out #top .top-r { margin-left: auto; }
+.lp-code { display: none; }
+@media (max-width: 760px) {
+  .lang-pick { width: 40px; height: 34px; border: 1px solid var(--line, #ddd); border-radius: 999px; background: var(--surface, #fff); justify-content: center; flex: none; }
+  .lp-code { display: block; font: 700 12px/1 var(--sans, inherit); color: var(--ink); }
+  .lang-pick select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; padding: 0; min-height: 0; }
+}
+
+/* ---------- Mind: psychological support (js/mind.js) ---------- */
+.mind { display: grid; gap: 16px; }
+.mind-why { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.mind-scores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 8px 0 10px; }
+.mscore { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.mscore span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.mscore b { font-size: 30px; line-height: 1.1; color: var(--c, var(--ink)); }
+.mscore small { font-size: 11.5px; color: var(--faint); } .mscore em { font-style: normal; font-weight: 600; font-size: 13px; color: var(--c, var(--ink)); }
+.mind-next { padding: 12px 14px; border-radius: 12px; background: var(--surface-2); border-left: 4px solid var(--c, var(--line-strong)); margin: 4px 0 12px; }
+.mind-req { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.mind-req ul { margin: 6px 0 0; padding-left: 18px; }
+.mind-sheet .sheet-b { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.mind-sheet h3.mp-t { font: 600 22px/1.25 var(--serif, inherit); text-transform: none; letter-spacing: 0; color: var(--ink); margin: 0; }
+.mind-sheet p { margin: 0; }
+.mq { display: grid; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.mq p { font-weight: 600; }
+.mq-opts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.mq-opts.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.mq-opts button { font: 600 12.5px/1.25 var(--sans, inherit); padding: 9px 6px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
+.mq-opts button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+.mp-steps { display: flex; gap: 6px; }
+.mp-steps button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 700; cursor: pointer; }
+.mp-steps button.done { background: var(--ok); border-color: var(--ok); color: #fff; }
+.mp-steps button.on { box-shadow: 0 0 0 3px var(--brand-soft); border-color: var(--brand); }
+.mp-do { padding: 14px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); display: grid; gap: 8px; }
+.mp-l { font-weight: 600; font-size: 14px; }
+.mp-checks { display: grid; gap: 8px; } .mp-checks label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+.mp-checks input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
+.mind-cmp { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; padding: 12px 14px; border-radius: 12px; background: var(--brand-soft); }
+.mind-cmp div { display: grid; } .mind-cmp span { font-size: 12px; color: var(--muted); } .mind-cmp b { font-size: 26px; } .mind-cmp small { color: var(--muted); }
+/* Window to Earth */
+.earth-window { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; overflow: hidden; color: #fff;
+  background: var(--stars, none) 0 0 / 360px 360px repeat, radial-gradient(120% 90% at 50% 30%, #142a5c 0%, #081230 50%, #03060f 100%); }
+.earth-window > .x { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; z-index: 3; color: #fff; background: rgb(255 255 255 / 0.12); border: 0; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
+.earth-window > .x svg { width: 18px; height: 18px; }
+.ew-ball { position: absolute; width: min(78vmin, 640px); aspect-ratio: 1; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.ew-over { position: relative; z-index: 2; width: min(92vw, 460px); display: grid; justify-items: center; gap: 12px; text-align: center; }
+.ew-card { background: rgb(6 12 30 / 0.72); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgb(255 255 255 / 0.14); border-radius: 22px; padding: 22px; display: grid; gap: 12px; }
+.ew-card h3 { font: 600 24px/1.2 var(--serif, inherit); text-transform: none; letter-spacing: 0; color: #fff; margin: 0; }
+.ew-card p { margin: 0; color: rgb(255 255 255 / 0.85); } .ew-card .muted { color: rgb(255 255 255 / 0.65); }
+.ew-card .mq-opts button { background: rgb(255 255 255 / 0.08); color: #fff; border-color: rgb(255 255 255 / 0.25); }
+.ew-card .mq-opts button.on { background: #fff; color: #0b2a8f; }
+.ew-res { font-weight: 700; }
+.btnrow.center { justify-content: center; }
+.btn.light { color: #fff; border-color: rgb(255 255 255 / 0.4); background: rgb(255 255 255 / 0.08); }
+.ew-guide { display: grid; place-items: center; gap: 6px; }
+.ew-ring { width: min(56vmin, 420px); aspect-ratio: 1; border-radius: 50%; border: 2px solid rgb(160 200 255 / 0.8); box-shadow: 0 0 40px rgb(110 170 255 / 0.45), inset 0 0 40px rgb(110 170 255 / 0.25); transform: scale(0.72); transition: transform 4s ease-in-out; grid-area: 1 / 1; }
+.ew-ring.in { transform: scale(1); } .ew-ring.hold { transform: scale(1); } .ew-ring.out { transform: scale(0.72); }
+.ew-word { grid-area: 1 / 1; font: 600 clamp(26px, 5vw, 40px)/1.1 var(--serif, inherit); text-shadow: 0 2px 18px rgb(0 0 0 / 0.6); margin: 0; }
+.ew-left { font-variant-numeric: tabular-nums; color: rgb(255 255 255 / 0.75); margin: 6px 0 0; }
+@media (max-width: 760px) {
+  .mq-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mq-opts.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .mq-opts.five:not(.calm-rate) { grid-template-columns: minmax(0, 1fr); }
+}
+/* Mind uses the same parts as the rest of the app (.card-h, .tasks rows, .mq-opts, .ask-sug chips).
+   No hover movement anywhere here: a button that shifts under the cursor loses clicks at its edges. */
+.mind .card-h h2 { display: flex; align-items: center; gap: 8px; } .mind .card-h h2 .ic { width: 18px; height: 18px; }
+.mind-now > p { margin: -6px 0 14px; max-width: 70ch; }
+.mind-now .btnrow { margin-top: 14px; }
+.mood-opts button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.mdot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); }
+.mdot.m1 { --c: var(--crit); } .mdot.m2 { --c: var(--alert); } .mdot.m3 { --c: var(--warn); } .mdot.m4 { --c: var(--ok); } .mdot.m5 { --c: var(--brand); }
+.mq-opts button.on .mdot { box-shadow: 0 0 0 2px var(--on-brand); }
+.mind-rows { margin: 12px 0 0; }
+.mind-rows .box.mind-ic { width: 36px; height: 36px; border: 0; border-radius: 10px; background: var(--brand-soft); color: var(--brand-ink); }
+.mind-rows .box.mind-ic .ic { width: 18px; height: 18px; stroke-width: 1.8; }
+.mind-rows .t-main { min-width: 0; } .mind-rows .t-main small { overflow-wrap: anywhere; }
+.mind-rows .t-side { flex: none; white-space: nowrap; } .mind-rows .t-side em { white-space: normal; max-width: 130px; }
+.mind-rows .fin .t-side { color: var(--ok); } .mind-rows .going button { border-color: var(--line-strong); }
+.mind-sub { font-size: 12px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin: 16px 0 0; }
+.ms-block { padding: 14px 0; border-top: 1px solid var(--line); display: grid; gap: 6px; } .card-h + .ms-block { border-top: 0; padding-top: 0; }
+.ms-block .mind-sub { margin: 0; } .ms-block p { margin: 0; } .ms-block .btn { justify-self: start; }
+.ms-level { display: flex; align-items: center; gap: 8px; font: 600 19px/1.25 var(--serif); color: var(--c, var(--ink)); }
+.ms-level .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--none)); flex: none; }
+.ms-block .mind-why { margin: 0; }
+.ms-block .mind-scores { margin: 2px 0; }
+.ms-big { font: 700 34px/1.1 var(--serif); margin: 0 0 4px; } .ms-big small { font-size: 15px; color: var(--muted); margin-left: 2px; }
+.calm-list { margin: 0; }
+/* the conversation, writing, journal and talk sheets */
+.mind-chat { width: min(680px, 100%); }
+.mind-chat header .btn.quiet { margin-left: auto; white-space: nowrap; }
+.mind-chat .chat { max-height: min(56vh, 520px); padding: 4px 2px 8px; }
+.mind-chat .chat .q { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mind-chat .chat .a.crisis { border-color: var(--crit); border-width: 2px; }
+.mind-chat .chat .mood-opts { margin-top: 4px; }
+.mind-chat textarea { resize: vertical; min-height: 48px; }
+.mind-tools button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; color: var(--ink); font-weight: 600; cursor: pointer; }
+.mind-tools button .ic, .mind-sheet .ask-sug .ic { width: 15px; height: 15px; }
+.mind-tools button.sos { background: var(--sos); color: #fff; border-color: var(--sos); }
+.mind-sheet .ask-sug button { min-height: 36px; padding: 7px 13px; cursor: pointer; color: var(--ink); }
+.mind-sheet .ask-sug button.on { color: var(--on-brand); }
+.wr-area { min-height: 180px; resize: vertical; font-size: 15px; line-height: 1.55; }
+.wr-area.rel { border-style: dashed; }
+.wr-done { display: grid; justify-items: center; text-align: center; gap: 8px; padding: 12px 0; }
+.wr-done > .ic { width: 36px; height: 36px; color: var(--ok); }
+.wr-done h3 { margin: 0; font: 600 22px/1.2 var(--serif, inherit); text-transform: none; letter-spacing: 0; color: var(--ink); } .wr-done p { max-width: 46ch; }
+.jr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.jr-list li { padding: 13px 14px; border-radius: 14px; background: var(--surface-2); display: grid; gap: 6px; }
+.jr-list header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .jr-list header small { color: var(--faint); margin-right: auto; }
+.jr-feel { display: flex; flex-wrap: wrap; gap: 4px; } .jr-feel span { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--brand-soft); color: var(--brand-ink); }
+.jr-x { color: var(--muted); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* the floating Help button never covers a Mind sheet's own buttons (they carry their own help) */
+body:has(#modal:not([hidden]) .mind-sheet) #sos-fab, body:has(#modal:not([hidden]) .earth-window) #sos-fab { display: none; }
+@media (max-width: 760px) {
+  .mq-opts.five.mood-opts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .mood-opts button { flex-direction: column; gap: 4px; font-size: 11.5px; padding: 8px 2px; }
+  .mind-now .btnrow .btn { flex: 1 1 100%; }
+  .mind-rows .t-side em { display: none; }
+  .mind .btn.sm, .mind-sheet .btn.sm { min-height: 40px; } /* comfortable touch targets */
+}
+@media (prefers-reduced-motion: reduce) { .ew-ring { transition: none; } }
+/* narrow phones: the top bar keeps every button (language, reminders, sync, mission day, account) on one line */
+@media (max-width: 430px) {
+  #top { padding-left: 12px; padding-right: 12px; }
+  #topr { gap: 6px; }
+  #topr .chip.sync { font-size: 0; gap: 0; padding-left: 9px; padding-right: 9px; }
+  #topr .chip.sync svg { width: 16px; height: 16px; }
+}
+
+/* Home cards: the turning Earth drawn behind each card (js/earth.js); the still picture shows until it is ready */
+.space { position: relative; isolation: isolate; }
+.space-bg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 1.2s ease; }
+.space-bg.on { opacity: 1; }
+/* light / dark switch: available on phones too (it was hidden with the other secondary chips) */
+#topr .chip[data-act="theme"] { display: inline-flex !important; }
+
+/* Steady hit areas: hover may change colour, border or shadow, but never moves a button or a card,
+   so the pointer can never slip off the edge of what it is about to click. */
+.mcard:hover, .mcard:active, .jcard:hover, .hl:hover, .ov-ind button:hover, .la:hover, .card:hover, .vital:hover, .crew-card:hover { transform: none; }
+main { padding-bottom: 96px; }

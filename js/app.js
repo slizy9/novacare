@@ -129,9 +129,10 @@ const PERSONAL = [
   { v: 'today', label: 'Today', icon: 'checks' },
   { v: 'vitals', label: 'Vitals', icon: 'heart' },
   { v: 'hazards', label: 'Hazards', icon: 'hazard' },
+  { v: 'mind', label: 'Mind', icon: 'brain' },
   { v: 'medical', label: 'Medical profile', icon: 'care' },
 ];
-const SUB_ALIAS = { status: 'overview', routine: 'today', vitals: 'vitals', hazards: 'hazards', overview: 'overview', today: 'today', medical: 'medical' };
+const SUB_ALIAS = { mind: 'mind', status: 'overview', routine: 'today', vitals: 'vitals', hazards: 'hazards', overview: 'overview', today: 'today', medical: 'medical' };
 
 const LOGO = '<svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><circle class="lg-o" cx="24" cy="24" r="19.5"/><path class="lg-ecg" d="M9.5 25h8l4.2-9 6 16.5 4.2-10.5 2.6 3H38.5"/></svg>';
 const SWOOSH = '<svg class="swoosh" viewBox="0 0 220 44" aria-hidden="true"><defs><linearGradient id="swg" x1="0" x2="1"><stop offset="0" stop-color="#ff4f9a" stop-opacity="0"/><stop offset="1" stop-color="#ff4f9a"/></linearGradient></defs><path d="M4 40C50 14 120 6 196 12" fill="none" stroke="url(#swg)" stroke-width="3" stroke-linecap="round"/><path d="M206 0c1.5 7 3.5 9 10 11-6.5 2-8.5 4-10 11-1.5-7-3.5-9-10-11 6.5-2 8.5-4 10-11z" fill="#ff4f9a"/></svg>';
@@ -143,12 +144,13 @@ function renderTop() {
       <div><b>NovaCare</b><span>${esc(mission.name)}</span></div></div>
     <div class="sysline ${on ? 'on' : 'off'}" role="status"><i></i>${on ? 'System Online' : 'Offline mode'}</div>
     <div class="top-r" id="topr">
+      ${I18N.picker()}
       <button class="chip hide-s" data-act="settings" title="Environment and mission settings">${icon('orbit')}${env.short}</button>
       ${(() => { const n = Reminders.list().length; return `<button class="chip bell ${n ? 'has' : ''}" data-act="reminders" title="Reminders" aria-label="Reminders${n ? `, ${n} pending` : ''}">${icon('bell')}${n ? `<em class="num">${n}</em>` : ''}</button>`; })()}
       ${syncChip()}
       <button class="chip icon-only hide-s" data-act="theme" title="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode" aria-label="Switch to ${document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'} mode">${icon(document.documentElement.dataset.theme === 'dark' ? 'sun' : 'moon')}</button>
       ${Missions.has() ? `<div class="md" title="Mission day — changes at midnight">MD <b class="num">${state.md}</b></div>` : ''}
-      <div class="user-chip" title="${u.guest ? 'Guest — data stays on this device' : `Signed in as ${esc(u.id)}`}"><span class="avatar ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : esc(initials(state.name || u.name))}</span><span class="uname">${esc(state.name || u.name)}</span><button data-act="logout" title="Sign out" aria-label="Sign out">${icon('logout')}</button></div>
+      <div class="user-chip" title="${u.guest ? 'Guest — data stays on this device' : `Signed in as ${esc(u.id)}`}"><span class="avatar ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="" data-name="${esc(u.guest ? u.name : state.name || u.name)}">` : esc(initials(state.name || u.name))}</span><span class="uname">${esc(state.name || u.name)}</span><button data-act="logout" title="Sign out" aria-label="Sign out">${icon('logout')}</button></div>
     </div>`;
 }
 
@@ -189,7 +191,7 @@ function viewLobby() {
   // header in the style of the references: eyebrow, headline with an italic word, key numbers, a glass "live" panel
   const hero = `<section class="card hero lobby-hero">
       <div class="hero-main"><p class="lobby-clock" id="lobby-clock">${clockHtml()}</p>
-        <h1 class="hero-title">${greeting()}${first ? `, <em>${esc(first)}.</em>` : '.'}</h1>
+        <h1 class="hero-title"><span>${greeting()}</span>${first ? `, <em>${esc(first)}.</em>` : '.'}</h1>
         ${lead}
         ${choice}
         <div class="hero-cta">${cta}</div></div>
@@ -197,7 +199,8 @@ function viewLobby() {
         <p class="glass-h"><span>Your health</span></p>
         ${[['checkin', 'plus', 'Add info', done ? 'Check-in done · add more' : 'Today’s check-in · about a minute'],
           ['status', 'checks', 'How do you feel', Status.due() ? 'Quick status is due' : 'Quick status · 30 seconds'],
-          ['ask', 'chat', 'Questions', 'Voice or text, works offline']].map(([act, ic, t, s]) => `<button class="la" data-act="${act}">${icon(ic)}<span><b>${t}</b><small>${s}</small></span>${icon('next', 'la-go')}</button>`).join('')}
+          ['ask', 'chat', 'Questions', 'Voice or text, works offline'],
+          ['mindgo', 'brain', 'Mind', Mind.checkDue() ? 'Weekly check is due · 2 minutes' : 'Programs and Window to Earth']].map(([act, ic, t, s]) => `<button class="la" data-act="${act}">${icon(ic)}<span><b>${t}</b><small>${s}</small></span>${icon('next', 'la-go')}</button>`).join('')}
       </nav></div>`}
     </section>`;
   if (locked) return hero;
@@ -317,7 +320,7 @@ function overviewTop() {
   const item = (act, v, ic, label) => `<button class="hl" data-act="${act}" ${v ? `data-v="${v}"` : ''}>${icon(ic)}<span>${label}</span>${icon('next', 'hl-go')}</button>`;
   return `<div class="ov">
     <div class="ov-col">
-      <section class="card ov-id"><button class="ov-photo" data-act="photopick" title="Change your profile photo" aria-label="Change your profile photo">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : crewPortrait(state.name || u.name)}<span class="ov-photo-edit">${icon('plus')}${myPhoto() ? 'Change' : 'Add photo'}</span></button>
+      <section class="card ov-id"><button class="ov-photo" data-act="photopick" title="Change your profile photo" aria-label="Change your profile photo">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="" data-name="${esc(u.guest ? u.name : state.name || u.name)}">` : crewPortrait(state.name || u.name)}<span class="ov-photo-edit">${icon('plus')}${myPhoto() ? 'Change' : 'Add photo'}</span></button>
         <div><h2>${esc(state.name || u.name)}</h2><p>${icon('users')}${esc(u.role)}</p><p>${icon('rocket')}${esc(mission.name)}</p><p>${icon('clock')}Mission day ${state.md}</p></div></section>
       <section class="card ov-kv"><h2>Key Vitals</h2>
         <button class="ov-hr ${lc(hr.level)}" data-act="detail" data-id="hr" aria-label="Heart rate, open trend"><span class="ov-heart">${icon('heart')}</span>
@@ -355,7 +358,7 @@ function osdrCard(sel) {
 
 function viewPersonal() {
   const due = Engine.dueList().length;
-  const body = { overview: viewStatus, today: viewRoutine, vitals: viewVitals, hazards: viewHazards, medical: viewMedical }[ui.sub]();
+  const body = { overview: viewStatus, today: viewRoutine, vitals: viewVitals, hazards: viewHazards, mind: Mind.view, medical: viewMedical }[ui.sub]();
   return pageHead(`${state.name ? esc(state.name.split(' ')[0]) + '’s' : 'Your'} health`, `Mission day ${state.md} · ${due ? `${due} measurement${due > 1 ? 's' : ''} due` : 'everything is logged for today'}`,
     ui.sub === 'overview' ? '' : `<button class="btn primary" data-act="checkin">${icon('plus')}Start check-in</button>`) +
     `<nav class="subnav" aria-label="Personal sections"><span class="ind" aria-hidden="true"></span>${PERSONAL.map((p) => `<button class="${ui.sub === p.v ? 'on' : ''}" data-act="sub" data-v="${p.v}" ${ui.sub === p.v ? 'aria-current="page"' : ''}>${icon(p.icon)}${p.label}</button>`).join('')}</nav>` + body;
@@ -378,7 +381,7 @@ const KEY_TILES = [['hr', 'Heart rate'], ['sys', 'Blood pressure'], ['spo2', 'Bl
 /* Local time and date for the lobby, refreshed every few seconds; it also turns the mission day at midnight. */
 function clockHtml() {
   const d = new Date();
-  return `<b class="num">${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</b><span>${d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>`;
+  return `<b class="num">${d.toLocaleTimeString(I18N.locale(), { hour: 'numeric', minute: '2-digit' })}</b><span>${d.toLocaleDateString(I18N.locale(), { weekday: 'long', month: 'long', day: 'numeric' })}</span>`;
 }
 setInterval(() => {
   if (!Auth.user() || !state) return;
@@ -387,7 +390,14 @@ setInterval(() => {
 }, 10000);
 
 /* ---------- profile photo ---------- */
-const myPhoto = () => (state ? photoFor(state.name || (Auth.user() && Auth.user().name), state.photo) : '');
+/* The guest is always Bruno Llobet Chanto, so his photo follows the guest account even when the saved
+   record has an older or edited name. 'none' means the person removed their photo on purpose. */
+const myPhoto = () => {
+  if (!state) return ''; const u = Auth.user();
+  if (u && u.guest) return photoFor(u.name, state.photo === 'none' ? null : state.photo) || BRUNO_PHOTO; // the guest always shows Bruno's face
+  return photoFor(state.name || (u && u.name), state.photo);
+};
+const knownPhoto = () => { const u = Auth.user(); return u ? knownPhotoFor(u.guest ? u.name : state.name || u.name) : ''; };
 function pickPhoto() {
   let f = $('#photo-file');
   if (!f) { f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*'; f.id = 'photo-file'; f.hidden = true; document.body.appendChild(f); }
@@ -645,7 +655,7 @@ function settingsHtml() {
   const perm = Reminders.permission(); const notif = Reminders.on();
   const prof = Medical.mine(); const al = Medical.allergyNames(prof);
   const st = Sync.status(); const [sc, , sl, stip] = SYNC_UI[st] || SYNC_UI.local;
-  const start = state.startDate ? new Date(state.startDate + 'T00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
+  const start = state.startDate ? new Date(state.startDate + 'T00:00').toLocaleDateString(I18N.locale(), { month: 'long', day: 'numeric', year: 'numeric' }) : '—';
   const row = (label, body, hint = '') => `<div class="set-row"><div class="set-l"><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</div><div class="set-v">${body}</div></div>`;
   const sec = (ic, title, body) => `<section class="set-sec"><h3>${icon(ic)}${title}</h3>${body}</section>`;
   return `<div class="sheet narrow settings" role="dialog" aria-modal="true" aria-label="Settings">
@@ -680,8 +690,8 @@ function settingsHtml() {
           r ? Object.values(r.res).filter((x) => !x.ok).map((x) => esc(x.text)).join(' · ') || `Medical records, medication rules, protocols and analysis all run on this device${r.online ? '' : ' — tested with no link'}. The link to Earth is only used to sync and update.` : 'Checks that the medical functions work on this device alone, with no link to Earth.'); })()}
         ${row('For your flight surgeon', '<button class="btn ghost sm" data-act="report">Health report</button> <button class="btn ghost sm" data-act="export">Raw data</button>')}`)}
       ${sec('user', 'Account & display', `
-        ${row('Profile photo', `<span class="avatar lg ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="">` : esc(initials(state.name || u.name))}</span>
-          <button class="btn ghost sm" data-act="photopick">${myPhoto() ? 'Change' : 'Add photo'}</button>${myPhoto() ? '<button class="btn quiet sm" data-act="photoremove">Remove</button>' : ''}`, 'Your crew sees it on your card.')}
+        ${row('Profile photo', `<span class="avatar lg ${myPhoto() ? 'ph' : ''}" aria-hidden="true">${myPhoto() ? `<img src="${esc(myPhoto())}" alt="" data-name="${esc(u.name)}">` : esc(initials(state.name || u.name))}</span>
+          <button class="btn ghost sm" data-act="photopick">${myPhoto() ? 'Change' : 'Add photo'}</button>${myPhoto() && !Auth.user().guest ? '<button class="btn quiet sm" data-act="photoremove">Remove</button>' : state.photo === 'none' && knownPhoto() ? '<button class="btn quiet sm" data-act="photorestore">Restore photo</button>' : ''}`, 'Your crew sees it on your card.')}
         ${row('Your name', `<input id="name" class="text" type="text" maxlength="40" value="${esc(state.name || '')}" placeholder="Your name" aria-label="Your name">`)}
         ${row('Role', `<span>${esc(u.role)}</span>`, 'Fixed when the account was created.')}
         ${row('Dark mode', `<label class="switch"><input type="checkbox" id="set-dark" ${document.documentElement.dataset.theme === 'dark' ? 'checked' : ''}><span></span></label>`, 'Easier on the eyes during the sleep cycle.')}
@@ -786,7 +796,7 @@ function connNote(reg) {
 
 function renderAuth() {
   const top = $('#top'); document.body.classList.add('signed-out'); $('#nav').innerHTML = ''; $('#banner').innerHTML = '';
-  top.innerHTML = `<div class="brand">${LOGO}<div><b>NovaCare</b></div></div>`;
+  top.innerHTML = `<div class="brand">${LOGO}<div><b>NovaCare</b></div></div><div class="top-r">${I18N.picker()}</div>`;
   $('#app').innerHTML = authHtml();
   if (!(ui.modal && ui.modal.type === 'firstaid')) ui.modal = null;
   Earth.spin($('#app')); // the planet turns behind the sign-in form
@@ -885,7 +895,7 @@ function render() {
   slideInd($('.subnav'), 'sub');
   if (entering) { window.scrollTo(0, 0); countUp(app); } else window.scrollTo(0, y);
   const term = $('#term-out'); if (term) term.scrollTop = term.scrollHeight; // a terminal shows its latest line
-  if (ui.view === 'lobby') Earth.paint(app); // the Home cards together show the Earth
+  if (ui.view === 'lobby') { Earth.paint(app); Earth.cards(); } // the Home cards together show the Earth, turning
   renderModal(); renderSos(); renderTakeover();
 }
 /* Inside a window the floating button steps aside, so the window carries its own small Help button. */
@@ -908,10 +918,11 @@ function renderModal() {
   if (!m) { el.hidden = true; el.innerHTML = ''; el.dataset.key = ''; el.classList.remove('out'); document.body.classList.remove('lock'); return; }
   el.hidden = false; document.body.classList.add('lock');
   el.innerHTML = m.type === 'quick' ? quickHtml(m) : m.type === 'measure' ? measureHtml(m) : m.type === 'done' ? doneHtml(m) : m.type === 'detail' ? detailHtml(m.id) : m.type === 'reauth' ? reauthHtml() : m.type === 'mate' ? mateHtml(m.id) : m.type === 'emergency' ? emergencyHtml(m)
-    : m.type === 'reminders' ? remindersHtml() : m.type === 'help' ? helpHtml(m) : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'case' ? caseHtml(m) : m.type === 'welfare' ? welfareHtml(m) : m.type === 'firstaid' ? firstAidHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : settingsHtml();
+    : m.type === 'reminders' ? remindersHtml() : m.type === 'help' ? helpHtml(m) : m.type === 'ask' ? askHtml(m) : m.type === 'status' ? statusHtml(m) : m.type === 'case' ? caseHtml(m) : m.type === 'welfare' ? welfareHtml(m) : m.type === 'firstaid' ? firstAidHtml(m) : m.type === 'newmission' ? missionNewHtml(m) : m.type === 'joinmission' ? missionJoinHtml(m) : m.type === 'created' ? missionCreatedHtml(m) : m.type === 'invitem' ? invItemHtml(m) : Mind.isModal(m.type) ? Mind.modal(m) : settingsHtml();
   const key = m.type + (m.step || '') + (m.i ?? '');
   el.classList.toggle('fresh', el.dataset.key !== key); el.dataset.key = key;
   tickTimer();
+  if (Mind.isModal(m.type)) Mind.afterRender(m);
   if (m.type === 'reauth') { const i = $('#ra-pw'); if (i) i.focus(); }
   if (m.type === 'ask') { const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight; const i = $('#ask-in'); if (i && !m.listening) i.focus(); }
   if (['newmission', 'joinmission', 'invitem'].includes(m.type) && el.classList.contains('fresh')) { const i = $('#modal input.text'); if (i) i.focus(); }
@@ -1103,6 +1114,7 @@ const actions = {
   },
   help() { ui.helpBack = ui.modal && ui.modal.type !== 'help' ? ui.modal : null; ui.modal = { type: 'help', urgent: true, why: [] }; renderModal(); },
   guidedone() { state.guideDone = true; Engine.save(); render(); },
+  photorestore() { delete state.photo; Engine.save(); Crew.refresh(true); render(); toast('Profile photo restored'); },
   photoremove() { state.photo = 'none'; Engine.save(); Crew.refresh(true); render(); toast('Profile photo removed'); },
   logfilter(d) { ui.logFilter = d.v; ui.logMsg = ''; render(); },
   logexport() { download(`novacare-log-${Auth.user().crew || 'personal'}-MD${state.md}.txt`, MissionLog.toText(MissionLog.entries()), 'text/plain'); },
@@ -1133,8 +1145,8 @@ const actions = {
   },
   missiontab(d) { navigate(() => { ui.view = 'mission'; ui.missionTab = d.v; ui.modal = null; render(); }); },
   ask() { ui.modal = { type: 'ask', chat: [], speak: false }; renderModal(); },
-  askq(d) { askNow(d.q); },
-  emgq(d) { emgAskNow(d.q); },
+  askq(d, el) { askNow((el && el.textContent.trim()) || d.q); }, // the chip as shown, in the app language
+  emgq(d, el) { emgAskNow((el && el.textContent.trim()) || d.q); },
   mic(d, el) {
     if (Voice.listening()) { Voice.stop(); return; }
     const input = $('#' + d.target); if (!input) return;
@@ -1274,6 +1286,7 @@ const actions = {
   demo() { if (confirm('Replace current data with the 33-day demo mission?')) { state = keepAccount(Engine.demo()); Engine.save(); ui.sys = null; ui.modal = null; render(); toast('Demo mission loaded'); } },
   reset() { if (confirm('Erase all your readings for this mission?\n\nThe mission, its day and your crew stay as they are. This cannot be undone.')) { const e = state.env, sd = state.startDate; state = keepAccount(Engine.fresh()); state.env = e; if (sd) state.startDate = sd; Engine.calendarDay(); Engine.save(); ui.sys = null; ui.modal = null; render(); toast('Readings erased — log a check-in when you are ready'); } },
 };
+Object.assign(actions, Mind.actions); // Mind: weekly check, programs, crew climate, Window to Earth
 
 /* Status update: next question, or save and show the result. Answers to questions that no longer apply are dropped. */
 function statusNext() {
@@ -1314,7 +1327,7 @@ function askNow(q) {
   // the local model only rewords knowledge-base answers; rules-engine answers are never sent to it
   if (a.kb && LocalLLM.ready()) { a.thinking = true; LocalLLM.phrase(q, a.kb, Crew.members()[0]).then((txt) => { a.thinking = false; if (txt) a.llm = txt; if (ui.modal === m) renderModal(); }); }
   renderModal();
-  if (m.speak && a.say) Voice.speak(a.say);
+  if (m.speak && a.say) Voice.speak(a.say, a.lang);
 }
 function emgMate(m) { return Crew.members().find((x) => x.id === m.id) || { id: m.id, name: m.name || 'Crew member', latest: {}, advisories: [], systems: {}, med: null }; }
 function emgAskNow(q) {
@@ -1530,6 +1543,7 @@ window.addEventListener('offline', netChange);
 setInterval(() => Reminders.tick(), 60000);
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.reminder && Auth.user()) Reminders.run(e.data.reminder); });
 const remParam = new URLSearchParams(location.search).get('reminder'); if (remParam) setTimeout(() => { if (Auth.user()) Reminders.run(remParam); }, 1500);
+I18N.onChange(() => { lastPage = ''; render(); }); // a new language: draw everything again (dates, menus)
 LocalLLM.ping(); // is the ship terminal's local model running? (never on the public website)
 if (Auth.restore()) { if (Auth.user().guest) Auth.guest(); Engine.load(); setupGuest(); } // a guest from an older version becomes Bruno too
 Auth.onRecovery(() => render()); // the reset link was opened: ask for the new password
