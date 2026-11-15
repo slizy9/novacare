@@ -180,7 +180,8 @@ function viewLobby() {
     : ''; // Questions, How do you feel and Add info are in the panel on the right; Help is the red button on every page
   // the check-in is offered, never forced: Start, or Not today
   const choice = locked ? '' : done
-    ? `<div class="ci-choice ok">${icon('check')}<div><b>Check-in done</b><small>${Status.due() ? 'Quick status due' : 'Nothing else to fill in right now'}</small></div>${Status.due() ? `<button class="btn primary sm" data-act="status">How do you feel?</button>` : `<button class="btn quiet sm" data-act="checkin">Edit</button>`}</div>`
+    ? (() => { const waiting = Care.open().filter((c) => c.status === 'new').length; // never "nothing to do" while recommendations wait
+        return `<div class="ci-choice ok">${icon('check')}<div><b>Check-in done</b><small>${Status.due() ? 'Quick status due' : waiting ? `${waiting} new recommendation${waiting > 1 ? 's' : ''} to read` : 'Nothing else to fill in right now'}</small></div>${Status.due() ? `<button class="btn primary sm" data-act="status">How do you feel?</button>` : waiting ? `<button class="btn primary sm" data-act="reminders">See</button>` : `<button class="btn quiet sm" data-act="checkin">Edit</button>`}</div>`; })()
     : day.skipCheckin
       ? `<div class="ci-choice skip">${icon('plus')}<div><b>No check-in today</b><small>You can still do it any time</small></div><button class="btn ghost sm" data-act="checkin">Start check-in</button></div>`
       : `<div class="ci-choice">${icon('pulse')}<div><b>Do today’s check-in?</b><small>About a minute · one screen</small></div>
@@ -565,7 +566,9 @@ function quickHtml(m) {
     <header><div class="grow"><p class="kicker">Daily check-in · MD ${state.md}</p><h2>How are you today?</h2></div>
       ${helpMini()}<button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
-      <section class="qsec"><h3>You</h3>${QUICK_FEEL.map((id) => quickField(id, d)).join('')}</section>
+      <section class="qsec"><h3>You</h3>${QUICK_FEEL.map((id) => quickField(id, d)).join('')}
+        <div class="qf"><div class="qf-h"><b>Anything bothering you?</b><span class="muted small">Optional</span></div>
+          <div class="chips ask-sug">${STATUS_QS.find((q) => q.id === 'sym').opts.map(([v, l]) => `<button type="button" class="${(m.sym || []).includes(v) ? 'on' : ''}" data-act="qsym" data-v="${v}" aria-pressed="${(m.sym || []).includes(v)}">${esc(l)}</button>`).join('')}</div></div></section>
       <section class="qsec"><div class="qsec-h"><h3>Vitals</h3><button class="btn ghost sm" data-act="filllast">${icon('copy')}Same as last time</button></div>
         ${bp}${['hr', 'spo2', 'temp'].map((id) => quickField(id, d)).join('')}</section>
       ${m.more.length ? `<details class="qsec more" ${m.more.some((id) => d[id] != null) ? 'open' : ''}><summary><h3>More</h3><span class="muted small">${m.more.length} optional · ${m.more.map((id) => IND[id].short).join(', ')}</span></summary>
@@ -958,6 +961,15 @@ function saveQuick() {
     day.vals[id] = val; saved.push(id); n++; });
   day.checkinAt = new Date().toISOString(); delete day.skipCheckin;
   Engine.save(); Crew.refresh(true);
+  const sym = (m.sym || []).filter((x) => x !== 'none');
+  if (sym.length) {
+    const mood = m.draft.mood; const ans = { feel: mood == null ? 3 : mood <= 2 ? 2 : 3, sym };
+    const qs = Status.steps(ans); const next = qs.findIndex((q) => ans[q.id] === undefined);
+    if (next >= 0 && !saved.some((id) => Engine.classify(IND[id], day.vals[id]).level >= 3)) { // a few taps for the detail (where, how bad), then the result
+      Care.sync(); ui.modal = { type: 'status', i: next, ans, fromCheckin: n }; render(); return;
+    }
+    Status.save(ans);
+  }
   Care.sync(); Reminders.tick();
   if (welfareCheck(saved, { type: 'done', count: n })) return;
   ui.modal = { type: 'done', count: n }; render();
@@ -1020,6 +1032,11 @@ function speakSteps(m) {
 }
 
 const actions = {
+  qsym(d, el) {
+    const m = ui.modal; let s = m.sym || [];
+    s = d.v === 'none' ? (s.includes('none') ? [] : ['none']) : s.includes(d.v) ? s.filter((x) => x !== d.v) : [...s.filter((x) => x !== 'none'), d.v];
+    m.sym = s; document.querySelectorAll('#modal [data-act="qsym"]').forEach((b) => { const on = s.includes(b.dataset.v); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  },
   case(d) { const id = d.v || d.id; if (!Care.get(id)) { toast('This follow-up is closed'); return; } Care.seen(id); ui.modal = { type: 'case', id }; render(); },
   casedid(d) { const c = Care.get(d.id); Care.act(d.id, 'Did the recommended steps'); Insight.decide(c.key, 'done'); ui.modal = null; render(); toast('Recorded — NovaCare will check at your next measurement'); },
   casemeasure(d) { const c = Care.get(d.id); Care.act(d.id, 'Measured again'); Care.measured(d.id); ui.modal = null; actions.log({ id: c.ind }); },
@@ -1262,7 +1279,7 @@ function statusNext() {
   const m = ui.modal; const qs = Status.steps(m.ans);
   if (m.i < qs.length - 1) { m.i++; renderModal(); return; }
   const keep = {}; qs.forEach((q) => { if (m.ans[q.id] !== undefined) keep[q.id] = m.ans[q.id]; });
-  const r = Status.save(keep); Crew.refresh(true);
+  const r = Status.save(keep); Crew.refresh(true); if (m.fromCheckin) { Care.sync(); Reminders.tick(); }
   if (!r.level) { ui.modal = null; render(); toast(`Thanks — all good. Next quick status in ${Status.every()} h`); return; }
   m.result = r; render();
 }

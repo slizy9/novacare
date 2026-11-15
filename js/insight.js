@@ -82,7 +82,7 @@ const PROTOCOL_FOR = {
   ecg: 'MED-14', urine: 'MED-08',
   't-sleep': 'WB-04', 't-mood': 'WB-01', 't-sans': 'MED-09', 't-inf': 'MED-06', 't-ex': 'MED-13', 't-dose': 'MED-16', 'p-bone': 'MED-13', 'p-dose': 'MED-16', 'p-sleep': 'WB-04',
   'Chest pain': 'MED-14', 'Short of breath at rest': 'MED-15', 'Short of breath on effort': 'MED-15', 'Sudden vision loss or flashes': 'MED-09', 'Fainted or nearly fainted': 'MED-03',
-  'Severe pain': 'MED-21', 'Possible fever or infection': 'MED-06', 'Vision change': 'MED-09', 'Headache': 'MED-01', 'Nausea or dizziness': 'MED-02', 'Cough': 'MED-06',
+  'Severe pain': 'MED-21', 'Severe headache': 'MED-01', 'Possible fever or infection': 'MED-06', 'Vision change': 'MED-09', 'Headache': 'MED-01', 'Nausea or dizziness': 'MED-02', 'Cough': 'MED-06',
   'Very tired': 'WB-09', 'Feeling low or anxious': 'WB-01', 'Would like to talk to someone': 'WB-01',
 };
 const SYM_ESC = { 3: 'Start onboard care with the Crew Medical Officer using the medical checklist.', 2: 'Inform the Crew Medical Officer today.' };
@@ -191,12 +191,29 @@ const Insight = (() => {
     const lite = !!opts.lite; const protocol = lite ? () => null : protocolOf;
     const c = context(); const adv = Engine.advisories().filter((a) => a.key !== 'status'); const out = [];
     const ctxFor = (id) => c.notes.filter((n) => n.ids.includes(id)).map((n) => n.text);
-    adv.forEach((a) => {
+    // one reading in the "attention" band is a "watch" until the previous reading of the same measurement was
+    // out of range too; a reading in the danger band (level 3) and multi-day trends keep their level
+    const calibrated = (a) => {
+      if (a.trend || a.level !== 2 || !IND[a.ind]) return a.level;
+      const s = Engine.series(a.ind); const prev = s.length > 1 ? s[s.length - 2] : null;
+      return prev && state.md - prev.md <= 3 && Engine.classify(IND[a.ind], prev.v).level >= 1 ? 2 : 1;
+    };
+    // systolic and diastolic are one blood pressure finding
+    const bp = adv.filter((a) => !a.trend && (a.key === 'sys' || a.key === 'dia'));
+    if (bp.length === 2) {
+      const [s0, d0] = [bp.find((a) => a.key === 'sys'), bp.find((a) => a.key === 'dia')];
+      const high = Engine.status('sys').dir === 'high';
+      adv.splice(adv.indexOf(d0), 1);
+      adv[adv.indexOf(s0)] = { ...s0, key: 'bp', level: Math.max(s0.level, d0.level), title: high ? 'Blood pressure is above range' : 'Blood pressure is below range',
+        detail: `${Engine.status('sys').v}/${Engine.status('dia').v} mmHg (logged MD ${Engine.status('sys').md})` };
+    }
+    adv.forEach((a0) => {
+      const a = { ...a0, level: calibrated(a0) };
       const id = IND[a.ind] ? a.ind : null;
       out.push({ key: a.key, level: a.level, title: a.title, detail: a.detail, ind: id, kind: a.trend ? 'Trend' : a.key === 'status' ? 'Reported' : 'Reading',
         rule: a.key === 'status' ? 'N-STA-01' : a.trend ? `N-TRD-${a.key.replace(/^t-/, '').toUpperCase()}` : `N-THR-${a.key.toUpperCase()}`,
         cmp: id ? compareLine(id, c) : '', ctx: id ? ctxFor(id) : [], why: '', actions: a.actions, next: id ? nextChecks(id) : [],
-        when: when(a.level, a.esc), who: a.esc.who, protocol: protocol(a.key, id && `${id}:${Engine.status(id).dir}`, id), sources: id ? sources(id) : [] });
+        when: when(a.level, a.level === a0.level ? a.esc : { text: '' }), who: a.level === a0.level ? a.esc.who : whoFor(a.level), protocol: protocol(a.key, id && `${id}:${Engine.status(id).dir}`, id), sources: id ? sources(id) : [] });
     });
     PERSONAL_IDS.forEach((id) => {
       if (adv.some((a) => a.ind === id)) return;
@@ -426,14 +443,14 @@ function caseHtml(m) {
   const f = Care.finding(c); const st = Care.stage(c); const p = f && f.protocol;
   const steps = f ? f.actions.slice(0, 3) : [];
   return `<div class="sheet narrow case" role="dialog" aria-modal="true" aria-label="${esc(c.title)}">
-    <header><div class="grow"><p class="kicker">${f ? esc(f.who) : 'Follow-up'} · opened MD ${c.openedMd}${p ? ` · ${Protocols.approved(p.id) ? 'approved protocol' : 'draft protocol'}` : ''}</p><h2>${esc(c.title)}</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <header><div class="grow"><p class="kicker">${f ? esc(f.who) : 'Follow-up'} · since day ${c.openedMd}</p><h2>${esc(c.title)}</h2></div><button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b one">
       <p class="case-st ${st.cls}"><span class="dot"></span><span><b>${st.label}.</b> ${esc(st.text)}</span></p>
-      ${f ? `<p class="case-what">${esc(f.cmp || f.detail)}</p>
+      ${f ? `<p class="case-what">${esc(f.detail)}</p>
         <h3>Do this</h3><ol class="case-do">${steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
         <p class="esc"><b>Get help:</b> ${esc(f.when)}</p>` : '<p class="muted">The finding is gone. NovaCare keeps watching until it is discharged.</p>'}
       ${f ? `<details class="evid"><summary>${icon('shield')}Why, and the medical protocol</summary><div class="case-why">
-        ${f.why ? `<p>${esc(f.why)}</p>` : ''}${f.ctx.map((x) => `<p class="muted small">${esc(x)}</p>`).join('')}
+        ${f.cmp ? `<p>${esc(f.cmp)}</p>` : ''}${f.why ? `<p>${esc(f.why)}</p>` : ''}${f.ctx.map((x) => `<p class="muted small">${esc(x)}</p>`).join('')}
         ${p ? `<p><b>Onboard protocol ${esc(p.id)} — ${esc(p.title)}</b> <small class="muted">(knowledge base ${esc(KB_VERSION)}, ${esc(Protocols.text(p.id))})</small></p><ol>${p.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol><p class="muted small">Escalate: ${esc(p.esc)}</p>` : ''}
         <p class="muted small">Rule ${esc(f.rule)} (finding rules ${esc(Protocols.text('ANALYSIS'))})${[...(p ? p.src : []), ...f.sources].slice(0, 3).map((s) => ` · <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.label)}</a>`).join('')}</p></div></details>` : ''}
       <details class="evid"><summary>${icon('file')}Follow-up so far · ${c.events.length}</summary><ul>${c.events.slice().reverse().slice(0, 8).map((e) => `<li>MD ${e.md} — ${esc(e.text)}</li>`).join('')}</ul></details>

@@ -1833,3 +1833,9 @@ body.lock #sos-fab { display: none; }
 .mres li > span:last-child { color: var(--muted); text-align: right; }
 @media (max-width: 760px) { .mc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mc figcaption { grid-template-columns: 1fr; } .mc figcaption b { text-align: left; } }
 .mc-x[hidden], .mc-h[hidden] { display: none; }
+
+/* short screens (landscape phones, small tablets): the Help button becomes a compact circle so it does not cover the content */
+@media (max-height: 560px) {
+  #sos-fab { min-height: 48px; width: 48px; padding: 0; justify-content: center; right: 12px; bottom: calc(12px + var(--navh, 0px)); }
+  #sos-fab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}

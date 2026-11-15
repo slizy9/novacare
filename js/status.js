@@ -59,11 +59,14 @@ const Status = (() => {
     if (a.breathRest === 'yes') f.push({ level: 3, text: 'Short of breath at rest', act: 'Measure SpO₂ now and get the Crew Medical Officer. Check the cabin air.', ind: 'spo2', emg: 'breathing' });
     if (a.visionHow === 'sudden') f.push({ level: 3, text: 'Sudden vision loss or flashes', act: 'Tell the Crew Medical Officer now — this needs an eye exam today.', ind: 'vision' });
     if (a.dizzyFaint === 'yes') f.push({ level: 3, text: 'Fainted or nearly fainted', act: 'Stay restrained, drink fluids, measure blood pressure and tell the Crew Medical Officer.', ind: 'sys' });
-    if (a.pain === 'yes' && a.painHow === 3 && !has(where, 'chest')) f.push({ level: 2, text: 'Severe pain', act: 'Tell the Crew Medical Officer today. Pain relief only as the medical checklist directs.', ind: 'hr' });
-    if (a.pain === 'yes' && a.painHow === 2) f.push({ level: 1, text: `Moderate pain (${where.join(', ') || 'unspecified'})`, act: 'Rest the area and repeat the status update in a few hours. Tell the crew if it gets worse.', ind: 'hr' });
+    // a headache is one finding (not "pain in the head" and "headache"); other areas are named in the pain finding
+    const body = where.filter((w) => w !== 'head' && w !== 'chest'); const headOnly = has(where, 'head') && !body.length && !has(where, 'chest');
+    if (a.pain === 'yes' && a.painHow === 3 && has(where, 'head')) f.push({ level: 2, text: 'Severe headache', act: 'Tell the Crew Medical Officer now. A sudden or worst-ever headache, or one with vision change, confusion or weakness, is an emergency — press Help.', ind: 'sys' });
+    if (a.pain === 'yes' && a.painHow === 3 && !has(where, 'chest') && !headOnly) f.push({ level: 2, text: `Severe pain${body.length ? ` (${body.join(', ')})` : ''}`, act: 'Tell the Crew Medical Officer today. Pain relief only as the medical checklist directs.', ind: 'hr' });
+    if (a.pain === 'yes' && a.painHow === 2 && !headOnly && (body.length || !where.length)) f.push({ level: 1, text: `Moderate pain (${body.join(', ') || 'unspecified'})`, act: 'Rest the sore area and repeat the status update in a few hours. Tell the crew if it gets worse.', ind: 'hr' });
     if (has(a.sym, 'fever') || has(a.feelWhy, 'sick')) f.push({ level: 2, text: 'Possible fever or infection', act: 'Log your temperature now, wash hands often and keep distance from crewmates.', ind: 'temp' });
     if (a.visionHow === 'near' || a.visionHow === 'far') f.push({ level: 1, text: 'Vision change', act: 'Log it in Vitals and mention it at the next medical conference (SANS check).', ind: 'vision' });
-    if (has(where, 'head')) f.push({ level: 1, text: 'Headache', act: 'Drink water, check cabin CO₂ and rest. Sudden or severe headache is urgent.', ind: 'co2' });
+    if (has(where, 'head') && a.painHow !== 3) f.push({ level: 1, text: 'Headache', act: 'Drink water, check cabin CO₂ and rest. Sudden or severe headache is urgent.', ind: 'co2' });
     if (has(a.sym, 'nausea') || has(a.sym, 'dizzy')) f.push({ level: 1, text: 'Nausea or dizziness', act: 'Keep your head still, sip fluids and eat small amounts.', ind: 'water' });
     if (has(a.sym, 'breath') && a.breathRest !== 'yes') f.push({ level: 1, text: 'Short of breath on effort', act: 'Measure SpO₂ after rest and log it.', ind: 'spo2' });
     if (has(a.sym, 'cough')) f.push({ level: 1, text: 'Cough', act: 'Log temperature and SpO₂ today.', ind: 'temp' });

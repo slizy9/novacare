@@ -38,6 +38,10 @@ const CONDITION = [
   { id: 'R-CON-03', drugs: ['paracetamol'], rx: /liver|hepat|higado/, level: 'caution', why: 'with liver disease the daily maximum is lower (3 g)' },
 ];
 
+/* Questions are answered in the language they were asked in (English or Spanish). */
+let ANSWER_LANG = 'en';
+const tr = (en, es) => (ANSWER_LANG === 'es' ? es : en);
+
 const Rules = (() => {
   const SRC_PROFILE = (p) => ({ id: 'Profile', label: `${p.name}'s medical profile`, url: null });
   /** Latest body mass for dosing: today's reading, else pre-flight baseline. */
@@ -48,16 +52,21 @@ const Rules = (() => {
   }
   /** Decide about one supply class for one person. Returns { status: block|caution|ok, rules, dose, stock }. */
   function check(cls, person) {
-    const p = person.med; const name = person.me ? 'You' : person.name.split(' ')[0]; const rules = [];
+    const p = person.med; const name = person.me ? tr('You', 'Tú') : person.name.split(' ')[0]; const rules = [];
+    const whose = person.me ? tr('Your', 'Tu') : tr(`${name}’s`, `El de ${name}:`);
     const blocked = Medical.blocked(p);
-    if (blocked[cls] && !/thinner/.test(blocked[cls])) rules.push({ id: 'R-ALG-01', level: 'block', text: `${name} ${person.me ? 'are' : 'is'} allergic to ${blocked[cls]}`, src: [SRC_PROFILE(person)] });
+    if (blocked[cls] && !/thinner/.test(blocked[cls])) rules.push({ id: 'R-ALG-01', level: 'block', text: person.me ? tr(`You are allergic to ${blocked[cls]}`, `Eres alérgico a ${blocked[cls]}`) : tr(`${name} is allergic to ${blocked[cls]}`, `${name} es alérgico a ${blocked[cls]}`), src: [SRC_PROFILE(person)] });
     const meds = p ? fold(p.meds.join(' ')) : ''; const cond = p ? fold(p.conditions.join(' ')) : '';
     INTERACT.forEach((r) => { if (r.drugs.includes(cls) && r.rx.test(meds)) rules.push({ id: r.id, level: r.level, text: `Takes ${p.meds.find((m) => r.rx.test(fold(m)))} — ${r.why}`, src: [SRC_PROFILE(person), SRC.pharm] }); });
     CONDITION.forEach((r) => { if (r.drugs.includes(cls) && r.rx.test(cond)) rules.push({ id: r.id, level: r.level, text: `Has ${p.conditions.find((m) => r.rx.test(fold(m)))} — ${r.why}`, src: [SRC_PROFILE(person)] }); });
-    if (!p || Medical.empty(p)) rules.push({ id: 'R-PRO-01', level: 'caution', text: `${name}'s medical profile is empty, so allergies and interactions cannot be checked`, src: [] });
+    if (!p || Medical.empty(p)) rules.push({ id: 'R-PRO-01', level: 'caution', text: tr(`${whose} medical profile is empty, so allergies and interactions cannot be checked`, person.me ? 'Tu perfil médico está vacío: no se pueden revisar alergias ni interacciones' : `El perfil médico de ${name} está vacío: no se pueden revisar alergias ni interacciones`), src: [] });
+    // today's vitals: anti-inflammatories raise blood pressure, so a high reading today calls for caution
+    const bp = person.me ? { s: Engine.status('sys'), d: Engine.status('dia') } : { s: (person.latest || {}).sys || {}, d: (person.latest || {}).dia || {} };
+    if ((cls === 'nsaid' || cls === 'aspirin') && bp.s.v != null && Engine.classify(IND.sys, bp.s.v).level >= 1 && Engine.classify(IND.sys, bp.s.v).dir === 'high')
+      rules.push({ id: 'R-VIT-01', level: 'caution', text: tr(`Blood pressure ${bp.s.v}/${bp.d.v ?? '—'} mmHg on MD ${bp.s.md} — anti-inflammatories can raise it further; paracetamol may be the better choice`, `Presión ${bp.s.v}/${bp.d.v ?? '—'} mmHg el día ${bp.s.md}: los antiinflamatorios pueden subirla más; el paracetamol puede ser mejor opción`), src: [{ id: 'Readings', label: tr('Your readings', 'Tus lecturas'), url: null }, SRC.pharm] });
     const it = Emergency.find(cls, Emergency.onBoard());
-    const stock = it ? (it.qty > 0 ? { ok: true, text: `${it.name}: ${it.qty} ${it.unit} on board${it.note ? ' · ' + it.note : ''}` } : { ok: false, text: `${it.name} is out of stock` }) : { ok: false, text: 'Not in the ship inventory' };
-    rules.push({ id: 'R-STK-01', level: stock.ok ? 'ok' : 'caution', text: stock.text, src: [{ id: 'Inventory', label: 'Ship inventory', url: null }] });
+    const stock = it ? (it.qty > 0 ? { ok: true, text: `${it.name}: ${it.qty} ${it.unit} ${tr('on board', 'a bordo')}` } : { ok: false, text: tr(`${it.name} is out of stock`, `${it.name}: agotado`) }) : { ok: false, text: tr('Not in the ship inventory', 'No está en el inventario de la nave') };
+    rules.push({ id: 'R-STK-01', level: stock.ok ? 'ok' : 'caution', text: stock.text, src: [{ id: 'Inventory', label: tr('Ship inventory', 'Inventario de la nave'), url: null }] });
     const d = DOSE[cls]; let dose = null;
     if (d) {
       const kg = weight(person);

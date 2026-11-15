@@ -264,18 +264,18 @@ const Assistant = (() => {
   function drugAnswer(t, person) {
     const named = Object.entries(SUPPLY).filter(([, s]) => s.drug && s.rx.test(t)).map(([c]) => c);
     if (!named.length) return null;
-    const who = person.me ? 'you' : person.name.split(' ')[0];
-    const head = { block: (n) => `⛔ Do not ${person.me ? 'take' : 'give'} ${n}`, caution: (n) => `⚠ ${n}: possible, with caution`, ok: (n) => `✓ ${n}: no contraindication found` };
+    const who = person.me ? tr('you', 'ti') : person.name.split(' ')[0];
+    const head = { block: (n) => tr(`⛔ Do not ${person.me ? 'take' : 'give'} ${n}`, `⛔ No ${person.me ? 'tomes' : 'des'} ${n}`), caution: (n) => tr(`⚠ ${n}: possible, with caution`, `⚠ ${n}: posible, con precaución`), ok: (n) => tr(`✓ ${n}: no contraindication found`, `✓ ${n}: sin contraindicaciones encontradas`) };
     const blocks = named.map((c) => {
       const r = Rules.check(c, person); const n = SUPPLY[c].name.toLowerCase();
       const srcs = [...new Map(r.rules.flatMap((x) => x.src).map((x) => [x.id, x])).values()];
       return `<div class="rule ${r.status}"><p class="rule-h">${head[r.status](n)}</p>
         <ul>${r.rules.map((x) => `<li class="${x.level}"><code>${x.id}</code> ${esc(x.text)}</li>`).join('')}</ul>
-        ${r.status !== 'block' && r.dose ? `<p class="rule-dose"><b>Reference dose:</b> ${esc(r.dose)}. Confirm with the mission medical checklist and tell the Crew Medical Officer.</p>` : ''}
-        ${srcs.length ? `<p class="src">${icon('shield')}<span>Sources: ${srcs.map((x) => (x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label))).join(' · ')}</span></p>` : ''}</div>`;
+        ${r.status !== 'block' && r.dose ? `<p class="rule-dose"><b>${tr('Reference dose', 'Dosis de referencia')}:</b> ${esc(r.dose)}. ${tr('Confirm with the mission medical checklist and tell the Crew Medical Officer.', 'Confírmala con la lista médica de la misión y avisa al oficial médico.')}</p>` : ''}
+        ${srcs.length ? `<p class="src">${icon('shield')}<span>${tr('Sources', 'Fuentes')}: ${srcs.map((x) => (x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label))).join(' · ')}</span></p>` : ''}</div>`;
     });
     const say = named.map((c) => { const r = Rules.check(c, person); return r.status === 'block' ? `Do not ${person.me ? 'take' : 'give'} ${SUPPLY[c].name}. ${r.rules.find((x) => x.level === 'block').text}.` : `${SUPPLY[c].name}: ${r.status === 'ok' ? 'no contraindication found' : 'possible with caution'}.`; }).join(' ');
-    return { html: blocks.join('') + `<p class="engine">${icon('check')}Decided by the rules engine v${RULES_VERSION} for ${esc(who)} — no language model involved. Rules ${esc(Protocols.text('RULES'))}.</p>`, say, ruled: true };
+    return { html: blocks.join('') + `<p class="engine">${icon('check')}${tr(`Decided by the rules engine v${RULES_VERSION} for ${esc(who)} — no language model involved. Rules ${esc(Protocols.text('RULES'))}.`, `Decidido por el motor de reglas v${RULES_VERSION} para ${esc(who)}, sin modelo de lenguaje. Reglas: ${Protocols.approved('RULES') ? 'aprobadas' : 'borrador, sin aprobar por un médico; confírmalo con el oficial médico'}.`)}</p>`, say, ruled: true };
   }
 
   /** Answer from the onboard knowledge base: the best protocol, its steps, when to escalate, and its sources. */
@@ -284,9 +284,9 @@ const Assistant = (() => {
     const srcs = e.src.map((k) => SRC[k]).filter(Boolean);
     const html = `<p class="kb-h"><span class="kb-cat ${e.cat}">${{ medical: 'Medical', wellbeing: 'Wellbeing', ship: 'Ship' }[e.cat]}</span><b>${esc(e.title)}</b></p>
       <p>${esc(e.a)}</p><ol>${e.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
-      <p class="l2"><b>Escalate:</b> ${esc(e.esc)}</p>
-      ${also.length ? `<p class="muted small">Related: ${also.map((x) => esc(x.title)).join(' · ')}</p>` : ''}
-      <p class="src">${icon('shield')}<span>Source: onboard protocol <code>KB-${e.id}</code> (knowledge base v${KB_VERSION}), ${esc(Protocols.text('KB-' + e.id))}${srcs.length ? ' · ' + srcs.map((x) => `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(' · ') : ''}</span></p>`;
+      <p class="l2"><b>${tr('Escalate', 'Escalar')}:</b> ${esc(e.esc)}</p>
+      ${also.length ? `<p class="muted small">${tr('Related', 'Relacionado')}: ${also.map((x) => esc(x.title)).join(' · ')}</p>` : ''}
+      <p class="src">${icon('shield')}<span>${tr('Source: onboard protocol', 'Fuente: protocolo a bordo')} <code>KB-${e.id}</code> (${tr('knowledge base', 'base de conocimiento')} v${KB_VERSION}), ${esc(Protocols.text('KB-' + e.id))}${ANSWER_LANG === 'es' ? ' · texto del protocolo en inglés' : ''}${srcs.length ? ' · ' + srcs.map((x) => `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>`).join(' · ') : ''}</span></p>`;
     return { html, say: `${e.title}. ${e.a} ${e.steps[0]} ${e.esc}`, act: e.emg ? { label: 'Open emergency help', act: 'emergency', id: person.id } : null, kb: hits.map((h) => h.e) };
   }
 
@@ -302,8 +302,9 @@ const Assistant = (() => {
   /** Nothing on board covers it: say so and escalate — never improvise. */
   function noProtocol() {
     const env = Engine.env();
-    return { html: `<p class="l2"><b>No onboard protocol for this question.</b> NovaCare only answers from its knowledge base (v${KB_VERSION}) and the rules engine, so it will not guess.</p>
-      <p>Escalate: ask the Crew Medical Officer, or send the question to ground — ${esc(env.commNote)}</p>`, say: 'No onboard protocol for this question. Escalate to the Crew Medical Officer or ground.', none: true };
+    return { html: tr(`<p class="l2"><b>No onboard protocol for this question.</b> NovaCare only answers from its knowledge base (v${KB_VERSION}) and the rules engine, so it will not guess.</p>
+      <p>Escalate: ask the Crew Medical Officer, or send the question to ground — ${esc(env.commNote)}</p>`, `<p class="l2"><b>No hay un protocolo a bordo para esta pregunta.</b> NovaCare solo responde con su base de conocimiento (v${KB_VERSION}) y el motor de reglas, así que no va a adivinar.</p>
+      <p>Escala: pregunta al oficial médico de la tripulación o envía la pregunta a tierra.</p>`), say: 'No onboard protocol for this question. Escalate to the Crew Medical Officer or ground.', none: true };
   }
 
   function profileAnswer(person) {
@@ -350,7 +351,10 @@ const Assistant = (() => {
   }
 
   /** Answer a question. ctx.person = whose health it is about (default: you); ctx.emg = open emergency protocol. */
+  /** Spanish if the question reads as Spanish (accents, ¿ or common words); English otherwise. */
+  const isEs = (q) => /[¿¡ñ]|[áéíóú]/i.test(q) || /\b(puedo|tengo|tomar|dolor|duele|cabeza|estoy|como|cual|tenemos|hay|siento|mareo|fiebre|para|pastilla)\b/.test(fold(q));
   function answer(q, ctx = {}) {
+    ANSWER_LANG = isEs(q) ? 'es' : 'en';
     const t = fold(q).trim();
     // a question can be about a crewmate by name ("Can I give Mei amoxicillin?")
     const named = !ctx.person && Crew.members().slice(1).find((m) => new RegExp('\\b' + fold(m.name.split(' ')[0]) + '\\b').test(t));
@@ -358,10 +362,20 @@ const Assistant = (() => {
     if (!t) return { html: '<p>Type or say a question.</p>', say: '' };
     if (!ctx.emg && RED_FLAG.test(t)) {
       const guess = Emergency.classify(t)[0];
-      return { html: `<p class="l3"><b>This sounds like an emergency.</b> Call the crew now and open the emergency protocol — NovaCare will check the ship inventory and allergies for you.</p>`, say: 'This sounds like an emergency. Call the crew and open the emergency protocol.', act: { label: 'Open emergency help', act: 'emergency', id: person.id, guess } };
+      return { html: `<p class="l3">${tr('<b>This sounds like an emergency.</b> Call the crew now and open the emergency protocol — NovaCare will check the ship inventory and allergies for you.', '<b>Esto parece una emergencia.</b> Llama a la tripulación ahora y abre el protocolo de emergencia: NovaCare revisará el inventario y las alergias por ti.')}</p>`, say: 'This sounds like an emergency. Call the crew and open the emergency protocol.', act: { label: 'Open emergency help', act: 'emergency', id: person.id, guess } };
     }
     // 1) rules engine: medication questions are decided here, before anything else
-    const drug = drugAnswer(t, person); if (drug) return drug;
+    const drug = drugAnswer(t, person);
+    if (drug) { // the medicine is decided by the rules; a symptom in the same question gets its protocol too
+      const sym = KBSearch.search(t, 3).map((h) => h.e).find((e) => e.cat === 'medical' && e.id !== 'MED-18');
+      if (sym) {
+        drug.html += `<div class="rule ok"><p class="rule-h">${icon('care')}${tr(`About the ${esc(sym.title.toLowerCase())}`, `Sobre el síntoma: ${esc(sym.title.toLowerCase())}`)}</p>
+          <ol>${sym.steps.slice(0, 3).map((x) => `<li>${esc(x)}</li>`).join('')}</ol><p class="l2"><b>${tr('Escalate', 'Escalar')}:</b> ${esc(sym.esc)}</p>
+          <p class="src">${icon('shield')}<span>${tr('Onboard protocol', 'Protocolo a bordo')} <code>KB-${sym.id}</code>, ${esc(Protocols.text('KB-' + sym.id))}${ANSWER_LANG === 'es' ? ' · texto del protocolo en inglés' : ''}</span></p></div>`;
+        drug.act = { label: tr('Record this symptom', 'Registrar este síntoma'), act: 'status' };
+      }
+      return drug;
+    }
     if (/allerg|alerg|blood type|tipo de sangre|grupo sangu|medical profile|perfil medico|my conditions|mis condiciones|what medication do|que medicamentos tom/.test(t)) return profileAnswer(person);
     if (ctx.emg && /what (do|should)|que (hago|hacer|le doy|doy)|medic|medicine|give|dar|pill|pastill|treat|tratar|help|ayud/.test(t)) return emergencyAdvice(ctx.emg, person);
     if (/do we have|is there any|are there any|have we got|\btenemos\b|nos queda|\bhay (algun|alguna|mas|suficiente|epinefrina|oxigeno)|inventory|inventario|on board|a bordo|in stock|supplies|suministro/.test(t)) return inventoryAnswer(t);

@@ -63,6 +63,7 @@ const Predict = (() => {
   function bone() {
     const env = Engine.env(); if (!/0 g|micro/i.test(env.gravity || '')) return null;
     const len = state.missionDays || 180; const ex = Engine.series('exercise').filter((p) => p.md > state.md - 14);
+    if (ex.length < 5) return null; // missing records are not missed exercise: estimate only with at least 5 days logged
     const kept = ex.length ? ex.filter((p) => p.v >= env.exTarget * 0.75).length / ex.length : 0;
     const perMonth = kept >= 0.75 ? 1.0 : kept >= 0.4 ? 1.25 : 1.5; const lossEnd = (len / 30) * perMonth; const lossNow = (state.md / 30) * perMonth;
     const lvl = lossEnd >= 8 ? 2 : lossEnd >= 5 ? 1 : 0;
