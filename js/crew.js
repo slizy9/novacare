@@ -177,9 +177,27 @@ const Crew = (() => {
     if (typeof myPhoto === 'function') me.photo = myPhoto(); // same photo as the top bar (the guest is always Bruno)
     // only real people who registered and joined this mission (the simulated demo crew was retired);
     // a guest on the showcase mission sees its real crew, read from the database
-    const mates = Auth.cloud() ? cloudMates() : [...localMates(), ...(u.guest && u.crew === SHOWCASE.code ? cloudMates() : [])];
+    let mates = Auth.cloud() ? cloudMates() : [...localMates(), ...(u.guest && u.crew === SHOWCASE.code ? cloudMates() : [])];
+    if (u.guest) { let k = 0; mates = mates.map((m) => (thin(m) ? sampleFor(m, k++) : m)); }
     list = [me, ...mates];
     return list;
+  }
+
+  /* In guest mode, a real crewmate who has logged little or nothing is shown with sample readings
+     (marked "Sample data"), so the crew, Mission and Insights views can be explored. Their name, role
+     and photo stay; their medical history stays private. Nothing is written back to the database. */
+  const thin = (m) => Object.values(m.series || {}).reduce((n, a) => n + a.length, 0) < 10;
+  const hash = (s) => { let h = 7; for (const c of String(s)) h = (Math.imul(h, 31) + c.charCodeAt(0)) | 0; return Math.abs(h); };
+  const sampleCache = {};
+  function sampleFor(m, k) {
+    const key = `${m.id}|${k}|${state.md}|${state.env}`;
+    if (!sampleCache[key]) {
+      const h = hash(m.id); const tpl = SIM[k % SIM.length]; // each sample crewmate gets a different pattern
+      const p = { ...tpl, id: m.id, name: m.name, seed: tpl.seed + (h % 997) };
+      const s = summarize(simState(p, state.md, state.env), { id: m.id, name: m.name, role: m.role });
+      sampleCache[key] = { ...s, photo: m.photo || s.photo, med: null, sample: true, cached: m.cached, updatedAt: m.updatedAt || s.updatedAt };
+    }
+    return sampleCache[key];
   }
 
   /* ---------- verdicts ---------- */

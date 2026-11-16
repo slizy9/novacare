@@ -85,7 +85,7 @@ function viewCrew() {
       <p class="crew-concern ${lc(top ? top.level : 0)}"><span class="dot"></span><span>${top ? esc(top.title) : 'No active concerns'}</span></p>
       <dl class="crew-vitals">${KEY_VITALS.slice(0, 3).map(([id, l]) => vitalCell(m, id, l)).join('')}</dl>
       ${medHistoryHtml(m, false)}
-      <p class="crew-meta">${m.checkedInToday ? `${icon('check')}Checked in today` : `${icon('clock')}Check-in pending`}${m.cached ? ` · ${timeAgo(m.updatedAt)}` : ''}${m.sim ? ' · <span class="tag sm" title="Synthetic demo astronaut">Simulated</span>' : ''}</p>
+      <p class="crew-meta">${m.checkedInToday ? `${icon('check')}Checked in today` : `${icon('clock')}Check-in pending`}${m.cached ? ` · ${timeAgo(m.updatedAt)}` : ''}${m.sim ? ' · <span class="tag sm" title="Synthetic demo astronaut">Simulated</span>' : ''}${m.sample ? ' · <span class="tag sm">Sample data</span>' : ''}</p>
       <footer><button class="btn ghost sm" data-act="mate" data-id="${esc(m.id)}">View details</button>
         ${u.guest && !m.sim ? `<button class="btn ghost sm" data-act="authtab" data-v="login" disabled title="Sign in to alert real crewmates">${icon('siren')}Sign in to alert</button>` : `<button class="btn sos sm" data-act="emergency" data-id="${esc(m.id)}">${icon('siren')}Emergency</button>`}</footer>
     </article>`;
@@ -98,7 +98,7 @@ function mateHtml(id) {
   if (!m) return '';
   const v = Crew.verdict(m);
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(m.name)}">
-    <header>${avatar(m, i)}<div class="grow"><h2>${esc(m.name)}</h2><p class="muted small">${esc(m.role || '')} · MD ${m.md}${m.sim ? ' · simulated' : ''}</p></div>${verdictPill(v)}<button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
+    <header>${avatar(m, i)}<div class="grow"><h2>${esc(m.name)}</h2><p class="muted small">${esc(m.role || '')} · MD ${m.md}${m.sim ? ' · simulated' : ''}${m.sample ? ' · sample data' : ''}</p></div>${verdictPill(v)}<button class="x" data-act="close" aria-label="Close">${icon('x')}</button></header>
     <div class="sheet-b">
       <div class="fields">
         <section>${medHistoryHtml(m, true)}</section>
