@@ -27,10 +27,10 @@ const I18N = (() => {
   const NUM = /\d+(?:[.,:]\d+)*/g;
   const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
   const firstWord = (s) => { const m = /^([A-Za-z][A-Za-z'’]*)/.exec(s); return m ? m[1].toLowerCase() : ''; };
+  // English is the main language: the page opens in English until someone picks another one in the menu
   let lang = (() => {
     try { const s = localStorage.getItem(KEY); if (s && LANGS[s]) return s; } catch (e) { /* no storage */ }
-    const n = String((typeof navigator !== 'undefined' && navigator.language) || 'en').slice(0, 2).toLowerCase();
-    return LANGS[n] ? n : 'en';
+    return 'en';
   })();
 
   /* Digits in a translation become {n} too when the count matches, so "Day 3 of 180" and "Day 4 of 180" share one entry. */

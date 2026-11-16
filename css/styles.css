@@ -1997,3 +1997,7 @@ body:has(#modal:not([hidden]) .mind-sheet) #sos-fab, body:has(#modal:not([hidden
    so the pointer can never slip off the edge of what it is about to click. */
 .mcard:hover, .mcard:active, .jcard:hover, .hl:hover, .ov-ind button:hover, .la:hover, .card:hover, .vital:hover, .crew-card:hover { transform: none; }
 main { padding-bottom: 96px; }
+
+/* sign-in: a quiet line saying this is a prototype with simulated data */
+.proto-note { display: inline-flex; align-items: center; justify-content: center; gap: 7px; align-self: center; margin: -4px auto 0; padding: 5px 12px; border-radius: 999px; font-size: 12.5px; line-height: 1.35; color: var(--muted); background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--line); max-width: min(560px, 100%); text-align: center; }
+.proto-note svg { width: 14px; height: 14px; flex: none; opacity: 0.7; }

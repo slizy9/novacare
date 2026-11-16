@@ -764,6 +764,7 @@ function authHtml() {
     <div class="auth-photo auth-earth" aria-hidden="true"><div class="earth-ball"><canvas class="earth-spin" width="480" height="480"></canvas></div></div>
     <div class="auth-main">
       <div class="auth-title"><h1>${SWOOSH}NovaCare</h1><p>Health Monitoring System</p></div>
+      <p class="proto-note">${icon('shield')}<span>Prototype — sample data is simulated, not from a real astronaut.</span></p>
       <div class="card auth-card">
         ${reg ? '<h2 class="auth-h">Create account</h2>' : ''}
         <form id="auth-form" class="fields" novalidate>
@@ -1301,14 +1302,23 @@ function statusNext() {
 /* The guest is Bruno, already on a preset mission with a month of readings, so everything can be
    tried at once. Set up once per device; it stays on the device and never syncs. */
 const GUEST_MISSION = SHOWCASE;
+const GUEST_VERSION = 3; // raise to give every guest a fresh copy of the sample data
+/* Bruno's sample medical profile and exams: invented for the prototype, not real medical data.
+   The penicillin allergy makes the "Can I take amoxicillin?" demo work straight away. */
+const GUEST_PROFILE = { blood: 'O+', allergies: ['penicillin'], other: '', meds: ['Vitamin D 1000 IU daily'], conditions: [], notes: 'Sample profile for the prototype — not real medical data.', baseline: { hr: 57, sys: 112, dia: 72, mass: 74 } };
+const GUEST_EXAMS = { 3: { ecg: 0, pexam: 0 }, 17: { urine: 0 }, 24: { ultra: 0 }, 31: { ecg: 1, pexam: 0 } };
 function setupGuest() {
   const u = Auth.user(); if (!u || !u.guest) return;
-  if (state.guestReady) { if (state.guestReady !== 2 && u.crew === SHOWCASE.code) { state.startDate = SHOWCASE.start; state.guestReady = 2; Engine.calendarDay(); Engine.save(); } return; }
-  state = keepAccount(Engine.demo());
-  state.name = u.name; state.guestReady = 2; state.guideDone = false;
+  if (state.guestReady === GUEST_VERSION) { Engine.calendarDay(); return; }
+  const photo = state.photo;
+  state = Engine.demo(); // a month of sample readings, ending today
+  state.name = u.name; state.guestReady = GUEST_VERSION; state.guideDone = false; if (photo) state.photo = photo;
+  state.profile = { ...GUEST_PROFILE, updatedAt: new Date().toISOString() };
+  Object.entries(GUEST_EXAMS).forEach(([d, v]) => { if (state.days[d]) Object.assign(state.days[d].vals, v); });
   state.missions = [{ code: GUEST_MISSION.code, name: GUEST_MISSION.name, role: 'member', at: new Date().toISOString() }];
   state.archive = {}; state.missionName = GUEST_MISSION.name; state.missionDays = GUEST_MISSION.days;
-  state.startDate = SHOWCASE.start; Engine.calendarDay(); // same mission day as everyone on NOVA-1
+  const start = new Date(); start.setDate(start.getDate() - (state.md - 1)); // so today is the day after the sample month
+  state.startDate = Engine.dayKey(start); Engine.calendarDay();
   Auth.updateProfile({ crew: GUEST_MISSION.code });
   Engine.today(); Engine.save(); Crew.refresh(true);
 }

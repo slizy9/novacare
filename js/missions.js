@@ -115,7 +115,9 @@ const Missions = (() => {
   }
   /** Apply restarts to the open mission and to parked ones. Returns true when something restarted. */
   function applyRestarts() {
-    if (!state) return false; ensure(); let any = false;
+    if (!state) return false;
+    if (Auth.user() && Auth.user().guest) return false; // the guest keeps the sample month; restarts are for real crews
+    ensure(); let any = false;
     const later = (key, d) => key && (!d.startDate || key > d.startDate);
     const c = code(); const k = c && startOf(c);
     if (later(k, state)) {

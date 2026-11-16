@@ -400,6 +400,7 @@
 
   /* ---------- sign-in ---------- */
   a("Health Monitoring System", "Sistema de monitoreo de salud", "Sistema de monitoramento de saúde", "Système de suivi de santé");
+  a("Prototype — sample data is simulated, not from a real astronaut.", "Prototipo — los datos de ejemplo son simulados, no de un astronauta real.", "Protótipo — os dados de exemplo são simulados, não de um astronauta real.", "Prototype — les données d’exemple sont simulées, pas celles d’un vrai astronaute.");
   a("Back to sign in", "Volver a iniciar sesión", "Voltar para entrar", "Retour à la connexion");
   a("Check your email", "Revisa tu correo", "Verifique seu e-mail", "Vérifiez vos e-mails");
   a("If", "Si", "Se", "Si");
