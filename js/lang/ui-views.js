@@ -470,7 +470,7 @@ I18N.add({
   "I can't sleep": { "es": "No puedo dormir", "pt": "Não consigo dormir", "fr": "Je n’arrive pas à dormir" },
   "Cabin CO₂ is high": { "es": "El CO₂ de la cabina está alto", "pt": "O CO₂ da cabine está alto", "fr": "Le CO₂ de la cabine est élevé" },
   "Can I take ibuprofen?": { "es": "¿Puedo tomar ibuprofeno?", "pt": "Posso tomar ibuprofeno?", "fr": "Puis-je prendre de l’ibuprofène ?" },
-  "Can I give Mei amoxicillin?": { "es": "¿Puedo darle amoxicilina a Mei?", "pt": "Posso dar amoxicilina para a Mei?", "fr": "Puis-je donner de l’amoxicilline à Mei ?" },
+  "Can I take amoxicillin?": { "es": "¿Puedo tomar amoxicilina?", "pt": "Posso tomar amoxicilina?", "fr": "Puis-je prendre de l’amoxicilline ?" },
   "What medicine can I give?": { "es": "¿Qué medicina puedo dar?", "pt": "Que remédio posso dar?", "fr": "Quel médicament puis-je donner ?" },
   "Can I give amoxicillin?": { "es": "¿Puedo dar amoxicilina?", "pt": "Posso dar amoxicilina?", "fr": "Puis-je donner de l’amoxicilline ?" },
   "Is it safe to give aspirin?": { "es": "¿Es seguro dar aspirina?", "pt": "É seguro dar aspirina?", "fr": "Est-il sûr de donner de l’aspirine ?" },

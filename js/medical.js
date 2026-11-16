@@ -366,7 +366,7 @@ const Assistant = (() => {
   }
   function answerIn(q, ctx) {
     const t = fold(q).trim();
-    // a question can be about a crewmate by name ("Can I give Mei amoxicillin?")
+    // a question can be about a crewmate by name ("Can I give Samantha amoxicillin?")
     const named = !ctx.person && Crew.members().slice(1).find((m) => new RegExp('\\b' + fold(m.name.split(' ')[0]) + '\\b').test(t));
     const person = ctx.person || named || Crew.members()[0];
     if (!t) return { html: '<p>Type or say a question.</p>', say: '' };
@@ -419,7 +419,7 @@ const Assistant = (() => {
     if (MIND_RX.test(t)) return KBI['GEN-02'];
     return null;
   }
-  const SUGGEST = ['What risks do I have ahead?', 'How am I doing?', 'Is my blood pressure OK?', 'I have a headache', 'I have a migraine', 'I feel anxious', 'I can\'t sleep', 'Cabin CO₂ is high', 'Can I take ibuprofen?', 'Can I give Mei amoxicillin?'];
+  const SUGGEST = ['What risks do I have ahead?', 'How am I doing?', 'Is my blood pressure OK?', 'I have a headache', 'I have a migraine', 'I feel anxious', 'I can\'t sleep', 'Cabin CO₂ is high', 'Can I take ibuprofen?', 'Can I take amoxicillin?'];
   const SUGGEST_EMG = ['What medicine can I give?', 'Can I give amoxicillin?', 'Is it safe to give aspirin?', 'What are their allergies?', 'Do we have oxygen?'];
   return { answer, SUGGEST, SUGGEST_EMG, drugAnswer };
 })();
