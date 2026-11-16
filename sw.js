@@ -1,6 +1,6 @@
 /* NOVACARE — offline cache so the app opens with no signal.
    Bump VERSION whenever you change the app files. */
-const VERSION = 'novacare-v46';
+const VERSION = 'novacare-v47';
 const ASSETS = ['./', 'index.html', 'css/styles.css', 'js/i18n.js', 'js/lang/ui-app.js', 'js/lang/ui-views.js', 'js/lang/ui-crew.js', 'js/lang/ui-data.js', 'js/lang/kb-med.js', 'js/lang/kb-wb.js', 'js/lang/kb-more.js', 'js/data.js', 'js/osdr.js', 'js/icons.js', 'js/art.js', 'js/config.js', 'js/vendor/supabase.js', 'js/photos.js', 'js/auth.js', 'js/engine.js', 'js/crew.js', 'js/missions.js', 'js/sections.js', 'js/medical.js', 'js/kb.js', 'js/rules.js', 'js/llm.js', 'js/status.js', 'js/reminders.js', 'js/predict.js', 'js/log.js', 'js/earth.js', 'js/coach.js', 'js/insight.js', 'js/mind.js', 'js/lang/ui-mind.js', 'js/app.js',
   'img/station.jpg', 'img/logo.svg', 'img/crew/bruno-llobet-chanto.jpg', 'fonts/inter-latin-wght-normal.woff2', 'fonts/inter-latin-ext-wght-normal.woff2', 'fonts/fraunces-latin-wght-normal.woff2'];
 

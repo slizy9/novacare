@@ -1309,7 +1309,9 @@ const GUEST_PROFILE = { blood: 'O+', allergies: ['penicillin'], other: '', meds:
 const GUEST_EXAMS = { 3: { ecg: 0, pexam: 0 }, 17: { urine: 0 }, 24: { ultra: 0 }, 31: { ecg: 1, pexam: 0 } };
 function setupGuest() {
   const u = Auth.user(); if (!u || !u.guest) return;
-  if (state.guestReady === GUEST_VERSION) { Engine.calendarDay(); return; }
+  // the guest's ship carries the mission loadout (medical kit included), kept on this device only
+  const stock = () => { if (typeof Inventory !== 'undefined' && !Inventory.items().length) Missions.loadInventory(true); };
+  if (state.guestReady === GUEST_VERSION) { Engine.calendarDay(); stock(); return; }
   const photo = state.photo;
   state = Engine.demo(); // a month of sample readings, ending today
   state.name = u.name; state.guestReady = GUEST_VERSION; state.guideDone = false; if (photo) state.photo = photo;
@@ -1320,7 +1322,7 @@ function setupGuest() {
   const start = new Date(); start.setDate(start.getDate() - (state.md - 1)); // so today is the day after the sample month
   state.startDate = Engine.dayKey(start); Engine.calendarDay();
   Auth.updateProfile({ crew: GUEST_MISSION.code });
-  Engine.today(); Engine.save(); Crew.refresh(true);
+  Engine.today(); Engine.save(); Crew.refresh(true); stock();
 }
 
 /* Loading the demo or restarting replaces the readings, never the person's missions, profile or name. */

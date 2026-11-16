@@ -73,6 +73,10 @@ const Medical = (() => {
 })();
 
 /* ---------- what the ship carries: inventory items recognised by name ---------- */
+/* Words that only ask about a medicine ("can I take…", "¿puedo darle…", "puis-je prendre…"), in the four
+   languages: removed before looking for a symptom in a medicine question. */
+const ASK_WORDS = /\b(can|could|may|should|i|you|we|he|she|they|them|him|her|my|me|take|give|use|have|is|it|safe|to|a|an|the|some|of|ok|okay|please|now|puedo|puede|podemos|debo|tomar|tomo|tome|dar|darle|darte|darles|usar|es|seguro|un|una|el|la|los|las|de|del|al|me|le|lo|yo|mi|por|favor|posso|pode|devo|dar|tomar|usar|e|o|os|uma|um|da|do|para|ele|ela|puis|peux|je|prendre|donner|lui|utiliser|est|ce|que|qu|du|des|le|les|une|il|elle|y|si|sans|risque|svp)\b/g;
+
 const SUPPLY = {
   epinephrine: { rx: /epinephrin|adrenalin|epipen|auto-?injector/, name: 'Epinephrine auto-injector', drug: true, alt: 'There is no substitute. Give oxygen, keep them flat (or upright if breathing is hard) and get the Crew Medical Officer.' },
   antihistamine: { rx: /antihistamin|cetirizin|loratadin|diphenhydramin|chlorphenamin|fexofenadin/, name: 'Antihistamine tablets', drug: true },
@@ -268,12 +272,12 @@ const Assistant = (() => {
     const who = person.me ? tr('you', 'ti') : person.name.split(' ')[0];
     const head = { block: (n) => tr(`⛔ Do not ${person.me ? 'take' : 'give'} ${n}`, `⛔ No ${person.me ? 'tomes' : 'des'} ${n}`), caution: (n) => tr(`⚠ ${n}: possible, with caution`, `⚠ ${n}: posible, con precaución`), ok: (n) => tr(`✓ ${n}: no contraindication found`, `✓ ${n}: sin contraindicaciones encontradas`) };
     const blocks = named.map((c) => {
-      const r = Rules.check(c, person); const n = SUPPLY[c].name.toLowerCase();
+      const r = Rules.check(c, person); const n = tv(SUPPLY[c].name).toLowerCase();
       const srcs = [...new Map(r.rules.flatMap((x) => x.src).map((x) => [x.id, x])).values()];
       return `<div class="rule ${r.status}"><p class="rule-h">${head[r.status](n)}</p>
         <ul>${r.rules.map((x) => `<li class="${x.level}"><code>${x.id}</code> ${esc(x.text)}</li>`).join('')}</ul>
-        ${r.status !== 'block' && r.dose ? `<p class="rule-dose"><b>${tr('Reference dose', 'Dosis de referencia')}:</b> ${esc(r.dose)}. ${tr('Confirm with the mission medical checklist and tell the Crew Medical Officer.', 'Confírmala con la lista médica de la misión y avisa al oficial médico.')}</p>` : ''}
-        ${srcs.length ? `<p class="src">${icon('shield')}<span>${tr('Sources', 'Fuentes')}: ${srcs.map((x) => (x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label))).join(' · ')}</span></p>` : ''}</div>`;
+        ${r.status !== 'block' && r.dose ? `<p class="rule-dose"><b>${tr('Reference dose', 'Dosis de referencia')}:</b> <span translate="no">${esc(r.dose)}.</span> <span>${tr('Confirm with the mission medical checklist and tell the Crew Medical Officer.', 'Confírmala con la lista médica de la misión y avisa al oficial médico.')}</span></p>` : ''}
+        ${srcs.length ? `<p class="src">${icon('shield')}<span><span>${tr('Sources', 'Fuentes')}</span>: ${srcs.map((x) => (x.url ? `<a href="${x.url}" target="_blank" rel="noopener">${esc(x.label)}</a>` : `<span>${esc(x.label)}</span>`)).join(' · ')}</span></p>` : ''}</div>`;
     });
     const say = named.map((c) => { const r = Rules.check(c, person); return r.status === 'block' ? `Do not ${person.me ? 'take' : 'give'} ${SUPPLY[c].name}. ${r.rules.find((x) => x.level === 'block').text}.` : `${SUPPLY[c].name}: ${r.status === 'ok' ? 'no contraindication found' : 'possible with caution'}.`; }).join(' ');
     return { html: blocks.join('') + `<p class="engine">${icon('check')}${tr(`Decided by the rules engine v${RULES_VERSION} for ${esc(who)} — no language model involved. Rules ${esc(Protocols.text('RULES'))}.`, `Decidido por el motor de reglas v${RULES_VERSION} para ${esc(who)}, sin modelo de lenguaje. Reglas: ${Protocols.approved('RULES') ? 'aprobadas' : 'borrador, sin aprobar por un médico; confírmalo con el oficial médico'}.`)}</p>`, say, ruled: true };
@@ -377,7 +381,10 @@ const Assistant = (() => {
     // 1) rules engine: medication questions are decided here, before anything else
     const drug = drugAnswer(t, person);
     if (drug) { // the medicine is decided by the rules; a symptom in the same question gets its protocol too
-      const sym = KBSearch.search(t, 3).map((h) => h.e).find((e) => e.cat === 'medical' && e.id !== 'MED-18');
+      // only when the question says more than "can I take / give X?": drop the medicine and the asking words first
+      const rest = Object.values(SUPPLY).reduce((s, x) => s.replace(new RegExp(`\\S*(?:${x.rx.source})\\S*`, 'gi'), ' '), t)
+        .replace(ASK_WORDS, ' ').replace(/[^\p{L}\s]/gu, ' ').trim();
+      const sym = rest.length >= 4 ? KBSearch.search(rest, 3).map((h) => h.e).find((e) => e.cat === 'medical' && e.id !== 'MED-18') : null;
       if (sym) {
         const sx = I18N.kb(sym, ANSWER_LANG);
         drug.html += `<div class="rule ok"><p class="rule-h">${icon('care')}${tr('About the symptom', 'Sobre el síntoma')}: <span translate="no">${esc(sx.title.toLowerCase())}</span></p>
