@@ -178,9 +178,24 @@ const Crew = (() => {
     // only real people who registered and joined this mission (the simulated demo crew was retired);
     // a guest on the showcase mission sees its real crew, read from the database
     let mates = Auth.cloud() ? cloudMates() : [...localMates(), ...(u.guest && u.crew === SHOWCASE.code ? cloudMates() : [])];
+    mates = oncePerPerson(mates, me.name);
     if (u.guest) { let k = 0; mates = mates.map((m) => (thin(m) ? sampleFor(m, k++) : m)); }
     list = [me, ...mates];
     return list;
+  }
+
+  /* One card per person: someone who registered twice (two accounts, same name) is shown once, with
+     the account that has more readings (then the most recent one). Nobody is shown twice as "you" either. */
+  const nameKey = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const points = (m) => Object.values(m.series || {}).reduce((n, a) => n + a.length, 0);
+  function oncePerPerson(mates, myName) {
+    const best = new Map(); const mine = nameKey(myName);
+    mates.forEach((m) => {
+      const k = nameKey(m.name) || m.id; if (k === mine) return;
+      const b = best.get(k);
+      if (!b || points(m) > points(b) || (points(m) === points(b) && String(m.updatedAt || '') > String(b.updatedAt || ''))) best.set(k, m);
+    });
+    return mates.filter((m) => best.get(nameKey(m.name) || m.id) === m);
   }
 
   /* In guest mode, a real crewmate who has logged little or nothing is shown with sample readings
