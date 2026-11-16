@@ -81,7 +81,7 @@ Lista de referencias de NovaCare en formato APA 7, en orden alfabético y lista 
 
 ## Notas
 
-- **Riesgos del HRP.** Los 19 riesgos están en la misma página del Human Research Roadmap, así que se citan con una sola referencia. Para nombrar uno en el texto: "según el Risk of Renal Stone Formation (National Aeronautics and Space Administration, Human Research Program, s.f.)". La lista de los 19 está en FUENTES.md.
+- **Riesgos del HRP.** Los 19 riesgos están en la misma página del Human Research Roadmap, así que se citan con una sola referencia. Para nombrar uno en el texto: "según el Risk of Renal Stone Formation (National Aeronautics and Space Administration, Human Research Program, s.f.)".
 - **Estudios de OSDR.** Cuando hay varios estudios del mismo año se usan letras: 2026a, 2026b, etc. Los autores de cada estudio están en su página de OSDR, por si el profesor los pide.
 - **Letras con "s.f.".** Las cuatro referencias de la NASA sin fecha llevan "s.f.-a" a "s.f.-d", ordenadas por título.
 - **Versiones por confirmar.** El código no dice qué revisión de NASA-STD-3001 se usó. El año de Ollama 0.5.7 (2025) es el de su publicación en GitHub. Conviene confirmar los dos.

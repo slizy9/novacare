@@ -3,3 +3,8 @@
 .DS_Store
 __pycache__/
 ship/data/
+
+# Private and internal files: kept in this folder, never published
+privado/
+.mcp.json
+.claude/
